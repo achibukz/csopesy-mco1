@@ -1,0 +1,8 @@
+[
+{
+  "directory": "/Users/achibukz/Code/GitHub/csopesy-mco1",
+  "command": "/usr/bin/c++   -g -std=gnu++17 -arch arm64 -o CMakeFiles/mco1.dir/src/main.cpp.o -c /Users/achibukz/Code/GitHub/csopesy-mco1/src/main.cpp",
+  "file": "/Users/achibukz/Code/GitHub/csopesy-mco1/src/main.cpp",
+  "output": "CMakeFiles/mco1.dir/src/main.cpp.o"
+}
+]
