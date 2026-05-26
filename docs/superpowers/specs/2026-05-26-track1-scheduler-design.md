@@ -27,6 +27,7 @@ Deliver a modular, thread-safe scheduler that:
 | `initialize` gate: only `initialize`/`exit` work before init | already in `Console::dispatch`, preserved |
 | `exit` shuts down cleanly | `Console::handleExit` → `Scheduler::shutdown` |
 | `scheduler-start` / `scheduler-stop` | `Console::handleSchedulerStart/Stop` → `Scheduler::start/stopGenerator` |
+| `demo` (extra, gated by `initialized_`) — runs the visual scheduling demo inside the REPL | `Console::handleDemo` → `demo::run` |
 | `config.txt` key-value parser with range validation | `src/Config.cpp::parseConfig` + `Config::validate` |
 | One `std::thread` per simulated CPU core | `CPU::run()` worker loop |
 | FCFS algorithm | `FCFSPolicy` |
@@ -387,6 +388,9 @@ void Console::handleInitialize() {
 void Console::handleSchedulerStart() { Scheduler::instance().startGenerator(); std::cout << "Generator started.\n"; }
 void Console::handleSchedulerStop()  { Scheduler::instance().stopGenerator();  std::cout << "Generator stopped.\n"; }
 
+// demo: shared library function, also used by scheduler_demo binary
+void Console::handleDemo() { demo::run(std::cout); }
+
 // exit (in Console::run loop) must call shutdown before returning:
 //   if (cmd == "exit") { if (initialized_) Scheduler::instance().shutdown(); break; }
 ```
@@ -430,7 +434,8 @@ csopesy-mco1/
 │   ├── SchedulingPolicy.h / .cpp        (new)
 │   ├── CPU.h / .cpp                     (new)
 │   ├── SchedulerEngine.h / .cpp         (new)
-│   └── Scheduler.h / .cpp               (new)
+│   ├── Scheduler.h / .cpp               (new)
+│   └── Demo.h / .cpp                    (new — shared demo runner used by REPL and binary)
 ├── tests/
 │   ├── MockProcess.h / .cpp             (new — fake IProcess for tests)
 │   ├── fixtures/
@@ -495,13 +500,31 @@ csopesy-mco1/
 
 ---
 
-## Demo binary
+## Demo runner (shared)
 
-`demos/scheduler_demo.cpp`:
+The demo logic lives once, in `src/Demo.h/.cpp`, and is called from two places:
 
-1. Build a `SchedulerConfig` for FCFS, 4 cores, 6 mock processes (15 instructions each). Run for 3 seconds. Print scheduler state to stdout each tick.
-2. Shutdown, then re-`initialize` with RR, quantum=3, same 6 processes. Run 3 seconds. Print again.
-3. Exit.
+```cpp
+// src/Demo.h
+namespace demo {
+    void run(std::ostream& out);   // self-contained: builds its own SchedulerConfig,
+                                   // spawns MockProcesses, runs FCFS then RR, prints
+                                   // per-tick lines, tears down cleanly.
+}
+```
+
+**Behavior of `demo::run`:**
+
+1. Build a `SchedulerConfig` for FCFS, 4 cores, 6 mock processes (15 instructions each). Run for ~3 seconds. Print `[tick=N core=K p=NAME line=L/T]` per execution.
+2. `Scheduler::instance().shutdown()`, then re-`initialize` with RR, quantum=3, same 6 processes. Run ~3 seconds. Print again.
+3. Return.
+
+**Two entry points:**
+
+- **`scheduler_demo` binary** (`demos/scheduler_demo.cpp`) — one-line `main()` that calls `demo::run(std::cout)`. Fast dev iteration: `./scheduler_demo`.
+- **`demo` REPL command** (Track 3) — `Console::handleDemo` calls `demo::run(std::cout)` after the user has called `initialize`. Useful inside the actual binary during the graded presentation.
+
+Because the body lives in `mco1_core`, both entry points exercise the exact same code path. The REPL `demo` command is gated by `initialized_` (same as `scheduler-start`); however, `demo::run` itself constructs and tears down its own `Scheduler` state, so it is safe to call regardless of the prior init state of the user-facing scheduler. The implementation must restore the post-init state (or clearly note that the user should re-run `initialize` afterward).
 
 This is the eyeball test — you can see ticks happening, cores sharing work, and quantum slicing.
 
@@ -524,6 +547,7 @@ add_library(mco1_core
     src/SchedulerEngine.cpp
     src/CPU.cpp
     src/Scheduler.cpp
+    src/Demo.cpp
 )
 target_include_directories(mco1_core PUBLIC src)
 target_link_libraries(mco1_core PUBLIC Threads::Threads)
@@ -587,6 +611,7 @@ Add a new section after "Architecture notes":
 - [ ] `cmake --build . --target mco1` builds; the binary's banner / clear / unknown-command behavior is preserved.
 - [ ] `mco1` REPL: typing `initialize` reads `config.txt`, prints the resolved config summary, and unblocks the gate.
 - [ ] `mco1` REPL: typing `scheduler-start` starts the generator; `scheduler-stop` stops it; `exit` shuts down cleanly within 500 ms.
+- [ ] `mco1` REPL: typing `demo` (after `initialize`) runs the same scheduling demo as `./scheduler_demo`, printing per-tick lines and exiting cleanly back to the prompt.
 - [ ] `cmake --build . --target mco1_tests && ctest` passes all Tier 1 + Tier 2 tests (Config, Policy, Engine, Scheduler).
 - [ ] `cmake --build . --target scheduler_demo && ./scheduler_demo` shows visible interleaving of cores and respects quantum/delays-per-exec.
 - [ ] No data races (verified by `-fsanitize=thread` run on the test binary if available locally).
