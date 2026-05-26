@@ -1,0 +1,140 @@
+#include <gtest/gtest.h>
+
+#include "MockProcess.h"
+#include "SchedulerEngine.h"
+#include "SchedulingPolicy.h"
+
+#include <memory>
+
+namespace {
+
+SchedulerConfig makeConfig(uint32_t batchFreq = 1) {
+    SchedulerConfig c;
+    c.numCpu = 1;
+    c.algo = SchedulerConfig::Algo::FCFS;
+    c.quantum = 1;
+    c.delaysPerExec = 0;
+    c.batchProcessFreq = batchFreq;
+    return c;
+}
+
+}  // namespace
+
+TEST(EngineTest, EnqueuePopOrderFcfs) {
+    FCFSPolicy policy;
+    SchedulerEngine engine(makeConfig(), policy);
+
+    MockProcess a(1, "a", 5);
+    MockProcess b(2, "b", 5);
+    MockProcess c(3, "c", 5);
+    engine.enqueueReady(&a);
+    engine.enqueueReady(&b);
+    engine.enqueueReady(&c);
+
+    EXPECT_EQ(engine.popReady(), &a);
+    EXPECT_EQ(engine.popReady(), &b);
+    EXPECT_EQ(engine.popReady(), &c);
+    EXPECT_EQ(engine.popReady(), nullptr);
+}
+
+TEST(EngineTest, StepOnceIncrementsTick) {
+    FCFSPolicy policy;
+    SchedulerEngine engine(makeConfig(), policy);
+    EXPECT_EQ(engine.currentTick(), 0u);
+    engine.stepOnce();
+    EXPECT_EQ(engine.currentTick(), 1u);
+    engine.stepOnce();
+    engine.stepOnce();
+    EXPECT_EQ(engine.currentTick(), 3u);
+}
+
+TEST(EngineTest, GeneratorFiresEveryBatchProcessFreqTicks) {
+    FCFSPolicy policy;
+    SchedulerEngine engine(makeConfig(/*batchFreq=*/3), policy);
+
+    int created = 0;
+    engine.setProcessFactory([&](const std::string& name, int pid) {
+        ++created;
+        return std::make_unique<MockProcess>(pid, name, 1);
+    });
+    engine.startGenerator();
+
+    for (int i = 0; i < 9; ++i) engine.stepOnce();
+    EXPECT_EQ(created, 3);
+}
+
+TEST(EngineTest, GeneratorDisabledByDefault) {
+    FCFSPolicy policy;
+    SchedulerEngine engine(makeConfig(1), policy);
+
+    int created = 0;
+    engine.setProcessFactory([&](const std::string& name, int pid) {
+        ++created;
+        return std::make_unique<MockProcess>(pid, name, 1);
+    });
+    for (int i = 0; i < 5; ++i) engine.stepOnce();
+    EXPECT_EQ(created, 0);
+}
+
+TEST(EngineTest, RunningAndFinishedSnapshotsAreCopies) {
+    FCFSPolicy policy;
+    SchedulerEngine engine(makeConfig(), policy);
+    MockProcess a(1, "a", 5);
+    engine.markRunning(&a, 0);
+
+    auto running = engine.snapshotRunning();
+    EXPECT_EQ(running.size(), 1u);
+    EXPECT_EQ(running[0], &a);
+
+    engine.markFinished(&a);
+    EXPECT_EQ(engine.snapshotRunning().size(), 0u);
+    EXPECT_EQ(engine.snapshotFinished().size(), 1u);
+    EXPECT_EQ(running.size(), 1u);
+}
+
+TEST(EngineTest, CoresUsedTracksRunning) {
+    FCFSPolicy policy;
+    SchedulerEngine engine(makeConfig(), policy);
+    MockProcess a(1, "a", 5);
+    MockProcess b(2, "b", 5);
+
+    EXPECT_EQ(engine.coresUsed(), 0);
+    engine.markRunning(&a, 0);
+    EXPECT_EQ(engine.coresUsed(), 1);
+    engine.markRunning(&b, 0);
+    EXPECT_EQ(engine.coresUsed(), 2);
+    engine.clearRunning(&a);
+    EXPECT_EQ(engine.coresUsed(), 1);
+    engine.markFinished(&b);
+    EXPECT_EQ(engine.coresUsed(), 0);
+}
+
+TEST(EngineTest, PreemptRemovesFromRunningAndCallsPolicy) {
+    RRPolicy policy;
+    SchedulerEngine engine(makeConfig(), policy);
+    MockProcess a(1, "a", 5);
+    engine.markRunning(&a, 0);
+
+    engine.preempt(&a, policy);
+    EXPECT_EQ(engine.coresUsed(), 0);
+    EXPECT_EQ(engine.snapshotRunning().size(), 0u);
+    EXPECT_EQ(engine.popReady(), &a);
+}
+
+TEST(EngineTest, GeneratorNamesAreZeroPadded) {
+    FCFSPolicy policy;
+    SchedulerEngine engine(makeConfig(1), policy);
+
+    std::vector<std::string> names;
+    engine.setProcessFactory([&](const std::string& name, int pid) {
+        names.push_back(name);
+        return std::make_unique<MockProcess>(pid, name, 1);
+    });
+    engine.startGenerator();
+    for (int i = 0; i < 3; ++i) engine.stepOnce();
+
+    ASSERT_EQ(names.size(), 3u);
+    EXPECT_EQ(names[0], "p01");
+    EXPECT_EQ(names[1], "p02");
+    EXPECT_EQ(names[2], "p03");
+}
