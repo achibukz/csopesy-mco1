@@ -1,6 +1,6 @@
-#include "SchedulingPolicy.h"
+#include "scheduler/SchedulingPolicy.h"
 
-#include "IProcess.h"
+#include "scheduler/IProcess.h"
 
 namespace {
 

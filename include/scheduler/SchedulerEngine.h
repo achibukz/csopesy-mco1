@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Config.h"
+#include "config/Config.h"
 
 #include <atomic>
 #include <condition_variable>

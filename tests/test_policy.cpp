@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
-#include "IProcess.h"
-#include "SchedulingPolicy.h"
+#include "scheduler/IProcess.h"
+#include "scheduler/SchedulingPolicy.h"
 
 #include <queue>
 

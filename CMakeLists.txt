@@ -18,17 +18,17 @@ endif()
 find_package(Threads REQUIRED)
 
 add_library(mco1_core
-    src/Config.cpp
-    src/SchedulingPolicy.cpp
-    src/SchedulerEngine.cpp
-    src/CPU.cpp
-    src/Scheduler.cpp
-    src/Demo.cpp
+    src/config/Config.cpp
+    src/scheduler/SchedulingPolicy.cpp
+    src/scheduler/SchedulerEngine.cpp
+    src/scheduler/CPU.cpp
+    src/scheduler/Scheduler.cpp
+    src/cli/Demo.cpp
 )
-target_include_directories(mco1_core PUBLIC src)
+target_include_directories(mco1_core PUBLIC include)
 target_link_libraries(mco1_core PUBLIC Threads::Threads)
 
-add_executable(mco1 src/main.cpp src/Console.cpp)
+add_executable(mco1 src/main.cpp src/cli/Console.cpp)
 target_link_libraries(mco1 PRIVATE mco1_core)
 
 add_executable(scheduler_demo demos/scheduler_demo.cpp)

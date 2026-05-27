@@ -1,8 +1,8 @@
-#include "CPU.h"
+#include "scheduler/CPU.h"
 
-#include "IProcess.h"
-#include "SchedulerEngine.h"
-#include "SchedulingPolicy.h"
+#include "scheduler/IProcess.h"
+#include "scheduler/SchedulerEngine.h"
+#include "scheduler/SchedulingPolicy.h"
 
 CPU::CPU(int coreId, SchedulerEngine& engine, ISchedulingPolicy& policy,
          uint32_t quantum, uint32_t delaysPerExec)

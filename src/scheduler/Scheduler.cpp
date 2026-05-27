@@ -1,8 +1,8 @@
-#include "Scheduler.h"
+#include "scheduler/Scheduler.h"
 
-#include "CPU.h"
-#include "IProcess.h"
-#include "SchedulingPolicy.h"
+#include "scheduler/CPU.h"
+#include "scheduler/IProcess.h"
+#include "scheduler/SchedulingPolicy.h"
 
 Scheduler& Scheduler::instance() {
     static Scheduler s;

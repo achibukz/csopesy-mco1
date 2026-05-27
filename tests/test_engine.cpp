@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
 
 #include "MockProcess.h"
-#include "SchedulerEngine.h"
-#include "SchedulingPolicy.h"
+#include "scheduler/SchedulerEngine.h"
+#include "scheduler/SchedulingPolicy.h"
 
 #include <memory>
 

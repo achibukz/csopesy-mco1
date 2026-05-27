@@ -1,8 +1,8 @@
-#include "Demo.h"
+#include "cli/Demo.h"
 
-#include "Config.h"
-#include "IProcess.h"
-#include "Scheduler.h"
+#include "config/Config.h"
+#include "scheduler/IProcess.h"
+#include "scheduler/Scheduler.h"
 
 #include <atomic>
 #include <chrono>

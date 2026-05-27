@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Config.h"
-#include "SchedulerEngine.h"
+#include "config/Config.h"
+#include "scheduler/SchedulerEngine.h"
 
 #include <memory>
 #include <vector>

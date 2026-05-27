@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "Config.h"
+#include "config/Config.h"
 
 #include <string>
 

@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "MockProcess.h"
-#include "Scheduler.h"
+#include "scheduler/Scheduler.h"
 
 #include <chrono>
 #include <thread>

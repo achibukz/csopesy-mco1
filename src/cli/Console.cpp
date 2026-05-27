@@ -1,8 +1,8 @@
-#include "Console.h"
+#include "cli/Console.h"
 
-#include "Config.h"
-#include "Demo.h"
-#include "Scheduler.h"
+#include "config/Config.h"
+#include "cli/Demo.h"
+#include "scheduler/Scheduler.h"
 
 #include <cstdlib>
 #include <iostream>

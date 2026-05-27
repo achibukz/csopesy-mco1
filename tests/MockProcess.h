@@ -1,6 +1,6 @@
 #pragma once
 
-#include "IProcess.h"
+#include "scheduler/IProcess.h"
 
 #include <atomic>
 #include <mutex>

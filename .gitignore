@@ -1,10 +1,24 @@
 build/
 *.o
+*.a
 *.exe
 .DS_Store
 .cache/
+
+# CMake artifacts (in case cmake is run from repo root)
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
 Makefile
+CTestTestfile.cmake
+compile_commands.json
+_deps/
+lib/
+bin/
+
+# Built binaries
+/mco1
+/mco1_tests
+/scheduler_demo
+
 CLAUDE.md
