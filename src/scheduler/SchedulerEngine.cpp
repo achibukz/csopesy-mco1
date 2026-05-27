@@ -184,23 +184,42 @@ void SchedulerEngine::moveToSleeping(IProcess* p) {
     }
 }
 
+void SchedulerEngine::adoptSleeping(std::unique_ptr<IProcess> p) {
+    if (!p) return;
+    std::lock_guard<std::mutex> lk(stateMutex_);
+    IProcess* raw = p.get();
+    owned_.push_back(std::move(p));
+    sleepingProcs_.push_back(raw);
+}
+
 void SchedulerEngine::tickSleepingProcesses() {
-    std::vector<IProcess*> woken;
+    // DS line 417: never hold stateMutex_ across a process method call.
+    // 1) snapshot sleepers under lock
+    std::vector<IProcess*> sleepers;
     {
         std::lock_guard<std::mutex> lk(stateMutex_);
-        auto it = sleepingProcs_.begin();
-        while (it != sleepingProcs_.end()) {
-            IProcess* p = *it;
-            p->tickSleep();
-            if (p->getState() != ProcessState::SLEEPING) {
-                woken.push_back(p);
-                it = sleepingProcs_.erase(it);
-            } else {
-                ++it;
-            }
-        }
-        for (IProcess* p : woken) ready_.push(p);
+        sleepers = sleepingProcs_;
     }
+
+    // 2) tick each one with no lock held
+    for (IProcess* p : sleepers) {
+        p->tickSleep();
+    }
+
+    // 3) under lock, rebuild sleepingProcs_ and push woken ones to ready_.
+    //    Rebuild from the engine's *current* sleepingProcs_ (not the snapshot),
+    //    so any sleepers added between steps 1 and 3 are preserved.
+    std::lock_guard<std::mutex> lk(stateMutex_);
+    std::vector<IProcess*> stillSleeping;
+    stillSleeping.reserve(sleepingProcs_.size());
+    for (IProcess* p : sleepingProcs_) {
+        if (p->getState() == ProcessState::SLEEPING) {
+            stillSleeping.push_back(p);
+        } else {
+            ready_.push(p);
+        }
+    }
+    sleepingProcs_.swap(stillSleeping);
 }
 
 void SchedulerEngine::waitForNextTick(uint64_t& lastSeen) {

@@ -38,6 +38,6 @@ private:
     std::thread            thread_;
 
     int                    ticksOnCurrent_ = 0;
-    int                    delayTicksRemaining_ = 0;
+    uint64_t               delayTicksRemaining_ = 0;
     uint64_t               lastSeenTick_ = 0;
 };

@@ -48,7 +48,7 @@ void CPU::run() {
         }
 
         p->executeNext(engine_.currentTick());
-        delayTicksRemaining_ = static_cast<int>(delaysPerExec_);
+        delayTicksRemaining_ = delaysPerExec_;
         ++ticksOnCurrent_;
 
         if (p->isFinished()) {

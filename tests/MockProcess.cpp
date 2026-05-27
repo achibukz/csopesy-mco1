@@ -55,6 +55,7 @@ void MockProcess::executeNext(uint64_t currentTick) {
 }
 
 void MockProcess::tickSleep() {
+    if (tickSleepHook) tickSleepHook();
     std::lock_guard<std::mutex> lk(mtx_);
     if (state_.load() != ProcessState::SLEEPING) return;
     if (sleepRemaining_ > 0) --sleepRemaining_;

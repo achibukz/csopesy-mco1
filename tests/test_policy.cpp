@@ -117,3 +117,21 @@ TEST(RRPolicyTest, EmptyQueueReturnsNull) {
     std::queue<IProcess*> q;
     EXPECT_EQ(policy.pickNext(q), nullptr);
 }
+
+// CR:134-142 — RR with quantum=1 must preempt every tick.
+TEST(PolicyTest, RoundRobinQuantumOnePreemptsEveryTick) {
+    RRPolicy policy;
+    StubProcess p(1, "p", 50);
+    EXPECT_FALSE(policy.shouldKeepRunning(&p, /*ticksOnCore=*/1, /*quantum=*/1));
+}
+
+// CR:134-142 — quantum larger than the process length must let the process
+// finish in one slice (degrades to FCFS).
+TEST(PolicyTest, RoundRobinQuantumExceedsProcessLengthBehavesLikeFCFS) {
+    RRPolicy policy;
+    StubProcess p(1, "p", 5);
+    for (int t = 1; t <= 5; ++t) {
+        EXPECT_TRUE(policy.shouldKeepRunning(&p, t, /*quantum=*/1000))
+            << "RR preempted before quantum at t=" << t;
+    }
+}

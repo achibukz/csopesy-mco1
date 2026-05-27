@@ -4,6 +4,7 @@
 #include "scheduler/SchedulerEngine.h"
 #include "scheduler/SchedulingPolicy.h"
 
+#include <atomic>
 #include <memory>
 
 namespace {
@@ -119,6 +120,36 @@ TEST(EngineTest, PreemptRemovesFromRunningAndCallsPolicy) {
     EXPECT_EQ(engine.coresUsed(), 0);
     EXPECT_EQ(engine.snapshotRunning().size(), 0u);
     EXPECT_EQ(engine.popReady(), &a);
+}
+
+// DS line 417: "Never hold stateMutex_ across a process method call."
+// Regression test for the tickSleepingProcesses deadlock risk.
+TEST(EngineTest, TickSleepingDoesNotHoldStateMutex) {
+    FCFSPolicy policy;
+    SchedulerEngine engine(makeConfig(), policy);
+
+    // Build a sleeping process: sleeps at line 1 for 3 ticks. Drive it into
+    // SLEEPING state before handing it to the engine.
+    auto sleeper = std::make_unique<MockProcess>(
+        1, "p01", /*totalInstructions=*/5,
+        /*sleepAtLine=*/1, /*sleepDuration=*/3);
+    sleeper->executeNext(0);
+    ASSERT_EQ(sleeper->getState(), ProcessState::SLEEPING);
+
+    MockProcess* raw = sleeper.get();
+    engine.adoptSleeping(std::move(sleeper));
+
+    // While engine ticks the sleeper, attempt to call a snapshot from inside
+    // tickSleep. If stateMutex_ is still held, this would deadlock.
+    std::atomic<bool> reentered{false};
+    raw->tickSleepHook = [&]() {
+        (void)engine.snapshotRunning();
+        reentered.store(true);
+    };
+
+    engine.stepOnce();
+    EXPECT_TRUE(reentered.load())
+        << "tickSleep was not invoked, or engine still holds stateMutex_";
 }
 
 TEST(EngineTest, GeneratorNamesAreZeroPadded) {

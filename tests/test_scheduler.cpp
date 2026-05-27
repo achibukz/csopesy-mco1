@@ -172,6 +172,29 @@ TEST_F(SchedulerFixture, GeneratorProducesProcesses) {
     EXPECT_GT(created.load(), 0);
 }
 
+// GP line 193: delays-per-exec range is [0, 2^32). Values above INT_MAX must
+// still busy-wait correctly. Regression test for CPU::delayTicksRemaining_ type.
+// With the bug (int cast), delaysPerExec > INT_MAX becomes negative, the
+// > 0 guard fails, and the busy-wait is skipped — the process executes
+// instructions back-to-back on consecutive ticks.
+TEST_F(SchedulerFixture, LargeDelaysPerExecDoesNotUnderflow) {
+    auto cfg = makeCfg(1, SchedulerConfig::Algo::FCFS, /*quantum=*/1,
+                       /*delays=*/3'000'000'000u);
+    Scheduler::instance().initialize(cfg);
+
+    MockProcess p(1, "p", 5);
+    Scheduler::instance().enqueue(&p);
+
+    // With a 3-billion-tick busy-wait between instructions, the process can
+    // never finish in 500ms. With the int-overflow bug, it finishes almost
+    // instantly because the negative cast disables the busy-wait entirely.
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+    auto visits = p.getVisits();
+    EXPECT_LE(visits.size(), 1u)
+        << "CPU treated large delays-per-exec as zero — int overflow.";
+}
+
 TEST_F(SchedulerFixture, CleanShutdownIsBounded) {
     auto cfg = makeCfg(4, SchedulerConfig::Algo::RR, /*quantum=*/3);
     Scheduler::instance().initialize(cfg);

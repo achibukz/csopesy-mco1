@@ -40,6 +40,10 @@ public:
     void      moveToSleeping(IProcess* p);  // removes from running, parks in sleeping pool
     void      tickSleepingProcesses();      // call once per tick; wakes READY ones back into ready_
 
+    // Test seam: directly inject a process already in SLEEPING state.
+    // Used only by engine tests to exercise tickSleepingProcesses.
+    void adoptSleeping(std::unique_ptr<IProcess> p);
+
     uint64_t currentTick() const { return tick_.load(); }
     void     waitForNextTick(uint64_t& lastSeen);
 

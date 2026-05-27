@@ -3,6 +3,7 @@
 #include "scheduler/IProcess.h"
 
 #include <atomic>
+#include <functional>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -32,6 +33,10 @@ public:
     void tickSleep() override;
 
     std::vector<Visit> getVisits() const;
+
+    // Called inside tickSleep() so tests can detect whether the engine
+    // released stateMutex_ before invoking process methods. Default: no-op.
+    std::function<void()> tickSleepHook;
 
 private:
     int                       pid_;
