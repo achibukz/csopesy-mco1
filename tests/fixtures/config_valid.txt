@@ -1,0 +1,8 @@
+# Sample valid config for tests
+num-cpu 4
+scheduler rr
+quantum-cycles 5
+batch-process-freq 2
+min-ins 100
+max-ins 200
+delays-per-exec 0
