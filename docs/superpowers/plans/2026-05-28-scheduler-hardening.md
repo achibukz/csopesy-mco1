@@ -1,4 +1,10 @@
-# Scheduler Hardening (Code Review + Edge Cases) Implementation Plan
+# [FINISHED] Scheduler Hardening (Code Review + Edge Cases) Implementation Plan
+
+> **Status:** FINISHED — 2026-05-28. All 11 tasks implemented. 32-test suite passing.
+> Locking discipline fix (Task 2) and CPU delay type fix (Task 4) shipped; characterization
+> tests for quantum boundaries, simultaneous wake, 128-core boot, CRLF config, snapshot
+> concurrency, and empty REPL input all landed. Verified in observations 905-907.
+
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

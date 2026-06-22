@@ -1,4 +1,9 @@
-# Track 1 + Track 3 — Scheduler Core, Threading, Config & Console Wiring — Design Spec
+# [FINISHED] Track 1 + Track 3 — Scheduler Core, Threading, Config & Console Wiring — Design Spec
+
+> **Status:** FINISHED — 2026-05-28. All acceptance criteria met. Code-reviewed
+> against this spec; findings tracked in `docs/2026-05-28-code-review-tracks-1-3.md`.
+> Remaining items there are polish, not blockers for the Track 1/3 contract.
+
 
 _Generated: 2026-05-26_
 _Branch: feat/scheduling_
