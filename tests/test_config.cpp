@@ -95,6 +95,37 @@ TEST(ConfigTest, RejectsUnknownKey) {
     EXPECT_THROW(parseConfigFromString(body), ConfigError);
 }
 
+// Parser must accept CRLF line endings (Windows-authored configs).
+TEST(ConfigTest, ParsesCrlfLineEndings) {
+    const std::string body =
+        "num-cpu 4\r\n"
+        "scheduler rr\r\n"
+        "quantum-cycles 5\r\n"
+        "batch-process-freq 1\r\n"
+        "min-ins 1\r\n"
+        "max-ins 10\r\n"
+        "delays-per-exec 0\r\n";
+    Config c = parseConfigFromString(body);
+    EXPECT_EQ(c.numCpu, 4);
+    EXPECT_EQ(c.scheduler, Config::Algo::RR);
+    EXPECT_EQ(c.quantumCycles, 5u);
+}
+
+// Parser must tolerate trailing spaces and multiple blank lines.
+TEST(ConfigTest, TolerantOfBlankLinesAndTrailingSpaces) {
+    const std::string body =
+        "num-cpu 4   \n"
+        "\n"
+        "\n"
+        "scheduler rr  \n"
+        "quantum-cycles 5\n"
+        "batch-process-freq 1\n"
+        "min-ins 1\n"
+        "max-ins 10\n"
+        "delays-per-exec 0\n";
+    EXPECT_NO_THROW(parseConfigFromString(body));
+}
+
 TEST(ConfigTest, ToSchedulerConfigMapsFields) {
     Config full = parseConfig(fixture("config_valid.txt"));
     SchedulerConfig sub = toSchedulerConfig(full);

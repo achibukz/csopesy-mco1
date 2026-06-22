@@ -7,6 +7,7 @@
 #include <chrono>
 #include <iomanip>
 #include <sstream>
+#include <unordered_set>
 #include <utility>
 
 namespace {
@@ -193,7 +194,7 @@ void SchedulerEngine::adoptSleeping(std::unique_ptr<IProcess> p) {
 }
 
 void SchedulerEngine::tickSleepingProcesses() {
-    // DS line 417: never hold stateMutex_ across a process method call.
+    // DS line 422: never hold stateMutex_ across a process method call.
     // 1) snapshot sleepers under lock
     std::vector<IProcess*> sleepers;
     {
@@ -206,17 +207,26 @@ void SchedulerEngine::tickSleepingProcesses() {
         p->tickSleep();
     }
 
-    // 3) under lock, rebuild sleepingProcs_ and push woken ones to ready_.
-    //    Rebuild from the engine's *current* sleepingProcs_ (not the snapshot),
-    //    so any sleepers added between steps 1 and 3 are preserved.
+    // 3) read post-tick states off-lock; collect woken pointers
+    std::unordered_set<IProcess*> woken;
+    for (IProcess* p : sleepers) {
+        if (p->getState() != ProcessState::SLEEPING) {
+            woken.insert(p);
+        }
+    }
+
+    // 4) under lock, rebuild sleepingProcs_ from the engine's *current* list
+    //    (preserving any sleepers added between steps 1 and 4) using the
+    //    off-lock `woken` set as a pure-data predicate. No process method
+    //    is called inside this critical section.
     std::lock_guard<std::mutex> lk(stateMutex_);
     std::vector<IProcess*> stillSleeping;
     stillSleeping.reserve(sleepingProcs_.size());
     for (IProcess* p : sleepingProcs_) {
-        if (p->getState() == ProcessState::SLEEPING) {
-            stillSleeping.push_back(p);
-        } else {
+        if (woken.count(p)) {
             ready_.push(p);
+        } else {
+            stillSleeping.push_back(p);
         }
     }
     sleepingProcs_.swap(stillSleeping);
