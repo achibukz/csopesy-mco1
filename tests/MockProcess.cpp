@@ -25,6 +25,11 @@ int MockProcess::getCurrentLine() const {
     return current_;
 }
 
+ProcessState MockProcess::getState() const {
+    if (getStateHook) getStateHook();
+    return state_.load();
+}
+
 void MockProcess::executeNext(uint64_t currentTick) {
     int recordedLine;
     bool triggerSleep = false;
