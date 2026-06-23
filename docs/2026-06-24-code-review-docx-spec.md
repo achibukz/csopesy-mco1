@@ -13,15 +13,26 @@ Severity:
 
 ## Track 1 — Scheduler Core
 
-No spec violations found against the docx.
+### H0 — Generator drops batch-process-freq events
+**File:** `src/scheduler/SchedulerEngine.cpp:90–121` (`generatorLoop`)
+**Docx:** "Every X CPU ticks, a new process is generated and put into the ready queue for your CPU scheduler." And: "If one, a new process is generated at the end of each CPU cycle."
+**Code:** `generatorLoop` waits on a 5 ms condition-variable timeout, then reads `current = tick_.load()`, sets `lastSeen = current`, and only spawns if `current % batchProcessFreq == 0`. Because `tickLoop` advances `tick_` every 1 ms, multiple tick boundaries can elapse between wake-ups. The generator only inspects the current tick value, so any boundaries it slept through are skipped — with `batch-process-freq 1` (your current config), most spawns are lost.
+**Fix:** iterate every tick between `lastSeen + 1` and `current` and spawn once per matching boundary:
+```cpp
+uint64_t current = tick_.load();
+for (uint64_t t = lastSeen + 1; t <= current; ++t) {
+    if (generatorEnabled_.load() && factory_ && t % cfg_.batchProcessFreq == 0) {
+        // spawn one process
+    }
+}
+lastSeen = current;
+```
+The duplicated spawn path in `stepOnce()` (lines 60–77) needs the same correction.
 
-The docx says:
-- "Every X CPU ticks, a new process is generated and put into the ready queue"
+Other Track 1 docx rules check out:
 - "delays-per-exec ... busy-waiting scheme wherein the process remains in the CPU"
 - "SLEEP(X) — sleeps the current process for X (uint8) CPU ticks and relinquishes the CPU"
 - Config ranges: num-cpu [1, 128], quantum-cycles [1, 2^32], batch-process-freq [1, 2^32], min-ins [1, 2^32], max-ins [1, 2^32], delays-per-exec [0, 2^32]
-
-All implemented in `SchedulerEngine.cpp`, `CPU.cpp`, `SchedulingPolicy.cpp`, `Config.cpp`.
 
 ---
 
@@ -103,7 +114,7 @@ The docx requires the following, none of which exist:
 
 | Track | Findings |
 |-------|----------|
-| 1 | none |
+| 1 | H0 |
 | 2 | M1 |
 | 3 | H1 |
 | 4 | H2 (whole track) |
@@ -111,4 +122,5 @@ The docx requires the following, none of which exist:
 **Order to fix:**
 1. H1 — one-line fix in `Console.cpp`.
 2. M1 — one-character fix in `Instructions.cpp:90`.
-3. H2 — implement Track 4 (`ScreenManager`, `Reporter`, and wire them into `Console`).
+3. H0 — catch-up loop in `SchedulerEngine.cpp` generator (and matching path in `stepOnce`).
+4. H2 — implement Track 4 (`ScreenManager`, `Reporter`, and wire them into `Console`).
