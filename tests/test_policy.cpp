@@ -3,6 +3,7 @@
 #include "scheduler/IProcess.h"
 #include "scheduler/SchedulingPolicy.h"
 
+#include <chrono>
 #include <queue>
 
 namespace {
@@ -24,6 +25,9 @@ public:
         if (current_ >= total_) state_ = ProcessState::FINISHED;
     }
     void tickSleep() override {}
+
+    std::vector<std::string>              getPrintLog() const override { return {}; }
+    std::chrono::system_clock::time_point getCreatedAt() const override { return {}; }
 
     void setState(ProcessState s) { state_ = s; }
 

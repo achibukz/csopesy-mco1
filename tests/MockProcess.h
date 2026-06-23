@@ -3,6 +3,7 @@
 #include "scheduler/IProcess.h"
 
 #include <atomic>
+#include <chrono>
 #include <functional>
 #include <mutex>
 #include <optional>
@@ -32,6 +33,9 @@ public:
     void executeNext(uint64_t currentTick) override;
     void tickSleep() override;
 
+    std::vector<std::string>              getPrintLog() const override { return {}; }
+    std::chrono::system_clock::time_point getCreatedAt() const override { return createdAt_; }
+
     std::vector<Visit> getVisits() const;
 
     // Called inside tickSleep() so tests can detect whether the engine
@@ -56,4 +60,5 @@ private:
     int                       sleepRemaining_ = 0;
     std::atomic<ProcessState> state_{ProcessState::READY};
     std::vector<Visit>        visits_;
+    std::chrono::system_clock::time_point createdAt_{std::chrono::system_clock::now()};
 };
