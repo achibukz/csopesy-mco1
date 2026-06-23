@@ -5,9 +5,7 @@
 
 namespace {
 
-// Fully-expanded count of atomic instructions a program will execute, accounting
-// for FOR repeats recursively. Clamped to INT_MAX so it fits getTotalLines()'s
-// int return without overflow (depth is bounded to 3 by the generator).
+// Recursive count of atomic instructions, expanding FOR repeats. Clamped to INT_MAX.
 long long countAtomics(const std::vector<std::unique_ptr<IInstruction>>& list) {
     long long sum = 0;
     for (const auto& ins : list) {
@@ -32,10 +30,8 @@ Process::Process(int pid, std::string name,
       totalInstructions_(static_cast<int>(countAtomics(program_))),
       createdAt_(std::chrono::system_clock::now()) {
     if (totalInstructions_ == 0) {
-        // Nothing to run — already done (handles zero-length processes).
         state_.store(ProcessState::FINISHED);
     } else {
-        // Seed the execution stack with a single pass over the top-level program.
         execStack_.push_back(Frame{&program_, 0, 1});
     }
 }
@@ -82,8 +78,7 @@ void Process::executeNext(uint64_t /*currentTick*/) {
     instr->execute(*this);  // may call requestSleep() -> state becomes SLEEPING
     currentLine_.fetch_add(1);
 
-    // Finish only once every atomic instruction has run and we are not parked
-    // in a SLEEP. (A trailing SLEEP transitions to FINISHED on the next wake.)
+    // A trailing SLEEP transitions to FINISHED on the next wake, not here.
     if (state_.load() != ProcessState::SLEEPING &&
         currentLine_.load() >= totalInstructions_) {
         state_.store(ProcessState::FINISHED);
@@ -101,8 +96,6 @@ std::vector<std::string> Process::getPrintLog() const {
     std::lock_guard<std::mutex> lk(mutex_);
     return printLog_;  // copy
 }
-
-// ---- Mutators (mutex_ already held by executeNext) ----
 
 uint16_t Process::getVar(const std::string& name) {
     auto [it, inserted] = variables_.try_emplace(name, uint16_t{0});  // auto-declare as 0

@@ -1,19 +1,5 @@
 #pragma once
 
-// Track 2 — Process & Instruction Engine (Person B)
-//
-// IInstruction interface + the six concrete command types + the randomized
-// instruction generator and a factory adapter for the scheduler.
-//
-// Design notes:
-//  * Atomic commands (PRINT/DECLARE/ADD/SUBTRACT/SLEEP) implement execute() —
-//    a single side effect on the owning Process. They are the unit of work the
-//    CPU advances by one per call to Process::executeNext().
-//  * FOR is a *block*: it carries a body and a repeat count but performs no work
-//    in execute(). The Process drives loops with an explicit execution stack
-//    (see Process.cpp) so that a SLEEP nested inside a FOR still relinquishes the
-//    CPU mid-loop, and so progress (current/total lines) stays accurate.
-
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -23,18 +9,12 @@
 class Process;
 class IProcess;
 
-// ---------------------------------------------------------------------------
-// IInstruction
-// ---------------------------------------------------------------------------
 class IInstruction {
 public:
     virtual ~IInstruction() = default;
 
-    // Perform this instruction's atomic side effect on the process.
-    // Called only by Process::executeNext(), which holds the process lock, so
-    // implementations may freely use Process's mutation helpers.
-    // Block instructions (FOR) leave this as a no-op; they are driven by the
-    // Process execution stack via isBlock()/body()/repeats() instead.
+    // Called by Process::executeNext() under the process lock.
+    // FOR leaves this as a no-op; the Process execution stack drives it instead.
     virtual void execute(Process& p) const { (void)p; }
 
     virtual bool isBlock() const { return false; }
@@ -52,12 +32,7 @@ struct Operand {
     static Operand var(std::string name)      { return Operand{false, 0, std::move(name)}; }
 };
 
-// ---------------------------------------------------------------------------
-// Concrete commands
-// ---------------------------------------------------------------------------
-
-// PRINT(msg [+ var]) — appends to the process's print log (never stdout).
-// With no message and no variable, emits "Hello world from <process_name>!".
+// PRINT(msg [+ var]) — appends to the print log. Defaults to "Hello world from <name>!".
 class PrintCommand : public IInstruction {
 public:
     explicit PrintCommand(std::string msg = "", std::string varRef = "")
@@ -66,7 +41,7 @@ public:
 
 private:
     std::string message_;
-    std::string varRef_;  // optional variable whose value is concatenated
+    std::string varRef_;  // if set, its value is appended to message_
 };
 
 // DECLARE(var, value) — initialize a uint16 variable.
@@ -115,9 +90,8 @@ private:
     uint8_t ticks_;
 };
 
-// FOR([body], repeats) — repeat the body. Driven by the Process execution stack;
-// execute() is intentionally a no-op. Max nesting depth (3) is enforced by the
-// generator at creation time.
+// FOR([body], repeats) — execute() is a no-op; the Process execution stack drives it.
+// Generator enforces max nesting depth of 3.
 class ForCommand : public IInstruction {
 public:
     ForCommand(std::vector<std::unique_ptr<IInstruction>> body, int repeats)
@@ -132,11 +106,8 @@ private:
     int                                        repeats_;
 };
 
-// ---------------------------------------------------------------------------
-// Instruction generator
-// ---------------------------------------------------------------------------
-// Produces a Process whose top-level program holds between [minIns, maxIns]
-// instructions, mixing all six types and respecting the FOR depth-<=3 rule.
+// Produces a randomized Process with [minIns, maxIns] top-level instructions
+// mixing all six types; FOR nesting is capped at kMaxForDepth.
 class InstructionGenerator {
 public:
     static constexpr int kMaxForDepth = 3;
@@ -145,14 +116,10 @@ public:
                                              uint32_t minIns, uint32_t maxIns);
 
 private:
-    // depthRemaining starts at kMaxForDepth; FOR generation decrements it and is
-    // disallowed once it reaches 1 (so loops never nest deeper than kMaxForDepth).
+    // depthRemaining decrements on each FOR recursion; FOR is disallowed once it hits 1.
     static std::unique_ptr<IInstruction> randomCommand(int depthRemaining);
 };
 
-// Factory adapter compatible with Scheduler::setProcessFactory(...).
-// Track 3 wires this once, e.g. from Console::handleInitialize:
-//     Scheduler::instance().setProcessFactory(
-//         makeProcessFactory(cfg.minIns, cfg.maxIns));
+// Factory adapter for Scheduler::setProcessFactory(); wired in Console::handleInitialize.
 std::function<std::unique_ptr<IProcess>(const std::string& name, int pid)>
 makeProcessFactory(uint32_t minIns, uint32_t maxIns);

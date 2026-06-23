@@ -8,17 +8,11 @@
 #include <random>
 #include <string>
 
-// ---------------------------------------------------------------------------
-// IInstruction default body() — shared empty list for non-block instructions.
-// ---------------------------------------------------------------------------
+// Shared empty list returned by non-block instructions.
 const std::vector<std::unique_ptr<IInstruction>>& IInstruction::body() const {
     static const std::vector<std::unique_ptr<IInstruction>> kEmpty;
     return kEmpty;
 }
-
-// ---------------------------------------------------------------------------
-// Command implementations
-// ---------------------------------------------------------------------------
 
 void PrintCommand::execute(Process& p) const {
     if (message_.empty() && varRef_.empty()) {
@@ -63,14 +57,10 @@ void SleepCommand::execute(Process& p) const {
 
 // ForCommand has no atomic side effect — the Process execution stack drives it.
 
-// ---------------------------------------------------------------------------
-// Random instruction generation
-// ---------------------------------------------------------------------------
 namespace {
 
 std::mt19937& rng() {
-    // Per-thread generator: the scheduler's generator thread and the console
-    // thread (screen -s) may both call into here concurrently.
+    // Per-thread so the scheduler generator thread and console (screen -s) don't race.
     static thread_local std::mt19937 engine{std::random_device{}()};
     return engine;
 }
@@ -140,9 +130,6 @@ std::unique_ptr<Process> InstructionGenerator::generate(const std::string& name,
     return std::make_unique<Process>(pid, name, std::move(program));
 }
 
-// ---------------------------------------------------------------------------
-// Factory adapter for the scheduler
-// ---------------------------------------------------------------------------
 std::function<std::unique_ptr<IProcess>(const std::string&, int)>
 makeProcessFactory(uint32_t minIns, uint32_t maxIns) {
     return [minIns, maxIns](const std::string& name, int pid) -> std::unique_ptr<IProcess> {
