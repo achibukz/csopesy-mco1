@@ -23,6 +23,8 @@ add_library(mco1_core
     src/scheduler/SchedulerEngine.cpp
     src/scheduler/CPU.cpp
     src/scheduler/Scheduler.cpp
+    src/process/Process.cpp
+    src/process/Instructions.cpp
     src/cli/Demo.cpp
 )
 target_include_directories(mco1_core PUBLIC include)
@@ -50,6 +52,7 @@ if(BUILD_TESTING)
         tests/test_policy.cpp
         tests/test_engine.cpp
         tests/test_scheduler.cpp
+        tests/test_process.cpp
         tests/test_console.cpp
         src/cli/Console.cpp
     )
