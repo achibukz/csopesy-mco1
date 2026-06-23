@@ -40,6 +40,9 @@ public:
 
     void tickSleep() override {}
 
+    std::vector<std::string>              getPrintLog() const override { return {}; }
+    std::chrono::system_clock::time_point getCreatedAt() const override { return createdAt_; }
+
 private:
     int                       pid_;
     std::string               name_;
@@ -48,6 +51,7 @@ private:
     std::mutex&               outMtx_;
     std::atomic<int>          current_{0};
     std::atomic<ProcessState> state_{ProcessState::READY};
+    std::chrono::system_clock::time_point createdAt_{std::chrono::system_clock::now()};
 };
 
 void runScenario(std::ostream& out,
