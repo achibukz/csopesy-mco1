@@ -25,7 +25,7 @@ public:
 
     int           getPID() const override         { return pid_; }
     std::string   getName() const override        { return name_; }
-    ProcessState  getState() const override       { return state_.load(); }
+    ProcessState  getState() const override;
     int           getCurrentLine() const override;
     int           getTotalLines() const override  { return total_; }
     bool          isFinished() const override     { return state_.load() == ProcessState::FINISHED; }
@@ -41,6 +41,11 @@ public:
     // Called inside tickSleep() so tests can detect whether the engine
     // released stateMutex_ before invoking process methods. Default: no-op.
     std::function<void()> tickSleepHook;
+
+    // Called inside getState() before returning state_. Used by tests to
+    // detect whether the engine still holds stateMutex_ when reading process
+    // state. Default: no-op.
+    mutable std::function<void()> getStateHook;
 
 private:
     int                       pid_;

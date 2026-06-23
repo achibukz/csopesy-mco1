@@ -152,6 +152,60 @@ TEST(EngineTest, TickSleepingDoesNotHoldStateMutex) {
         << "tickSleep was not invoked, or engine still holds stateMutex_";
 }
 
+// DS line 422: "Never hold stateMutex_ across a process method call."
+// The rebuild phase of tickSleepingProcesses calls p->getState() on every
+// sleeper to decide whether to wake it. If that call happens under
+// stateMutex_, a process whose getState() reenters the engine deadlocks.
+TEST(EngineTest, TickSleepingDoesNotHoldStateMutexDuringRebuild) {
+    FCFSPolicy policy;
+    SchedulerEngine engine(makeConfig(), policy);
+
+    auto sleeper = std::make_unique<MockProcess>(
+        1, "p01", /*totalInstructions=*/5,
+        /*sleepAtLine=*/1, /*sleepDuration=*/3);
+    sleeper->executeNext(0);
+    ASSERT_EQ(sleeper->getState(), ProcessState::SLEEPING);
+
+    MockProcess* raw = sleeper.get();
+    engine.adoptSleeping(std::move(sleeper));
+
+    // Hook getState() so the engine's rebuild-phase call reenters a method
+    // that needs stateMutex_. If the engine still holds the lock, this
+    // deadlocks (CTest timeout will catch it).
+    std::atomic<bool> reentered{false};
+    raw->getStateHook = [&]() {
+        (void)engine.snapshotRunning();
+        reentered.store(true);
+    };
+
+    engine.stepOnce();
+    EXPECT_TRUE(reentered.load())
+        << "getState was not invoked, or engine still holds stateMutex_ "
+           "during the rebuild phase";
+}
+
+// CR:139-141 — multiple sleepers with the same wake tick must all transition
+// from SLEEPING to READY in the same engine step without dropping any.
+TEST(EngineTest, SimultaneousAwakeningsAllReachReady) {
+    FCFSPolicy policy;
+    SchedulerEngine engine(makeConfig(), policy);
+
+    for (int i = 1; i <= 5; ++i) {
+        auto p = std::make_unique<MockProcess>(
+            i, "p0" + std::to_string(i), /*totalInstructions=*/2,
+            /*sleepAtLine=*/1, /*sleepDuration=*/1);
+        p->executeNext(0);  // drive to SLEEPING
+        ASSERT_EQ(p->getState(), ProcessState::SLEEPING);
+        engine.adoptSleeping(std::move(p));
+    }
+
+    engine.stepOnce();  // single tick should wake all 5
+
+    int popped = 0;
+    while (engine.popReady() != nullptr) ++popped;
+    EXPECT_EQ(popped, 5);
+}
+
 TEST(EngineTest, GeneratorNamesAreZeroPadded) {
     FCFSPolicy policy;
     SchedulerEngine engine(makeConfig(1), policy);

@@ -7,12 +7,15 @@ class Console {
 public:
     void run();
 
+    // Promoted to public so tests can drive the REPL dispatcher without
+    // spinning up an interactive session. Pure-logic, only stdout side effects.
+    void dispatch(const std::string& line);
+
 private:
     bool initialized_ = false;
 
     void printHeader();
     void clearScreen();
-    void dispatch(const std::string& line);
 
     void handleInitialize();
     void handleSchedulerStart();

@@ -53,6 +53,8 @@ if(BUILD_TESTING)
         tests/test_engine.cpp
         tests/test_scheduler.cpp
         tests/test_process.cpp
+        tests/test_console.cpp
+        src/cli/Console.cpp
     )
     target_link_libraries(mco1_tests PRIVATE mco1_core GTest::gtest_main)
     target_compile_definitions(mco1_tests PRIVATE

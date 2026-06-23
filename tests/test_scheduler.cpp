@@ -195,6 +195,65 @@ TEST_F(SchedulerFixture, LargeDelaysPerExecDoesNotUnderflow) {
         << "CPU treated large delays-per-exec as zero — int overflow.";
 }
 
+// CR:139-141 — when a process completes on the exact tick its quantum would
+// expire, it must end up in FINISHED, not back on READY.
+TEST_F(SchedulerFixture, RRFinishOnQuantumBoundaryGoesToFinishedNotReady) {
+    auto cfg = makeCfg(1, SchedulerConfig::Algo::RR, /*quantum=*/3);
+    Scheduler::instance().initialize(cfg);
+
+    MockProcess p(1, "p", /*totalInstructions=*/3);
+    Scheduler::instance().enqueue(&p);
+
+    ASSERT_TRUE(waitForAllFinished(1, std::chrono::milliseconds(2000)));
+
+    // Visits must equal total instructions: a wrongful re-enqueue after the
+    // final tick would either re-execute (impossible, MockProcess no-ops past
+    // total) or leave the process pointer in the ready queue indefinitely.
+    auto visits = p.getVisits();
+    EXPECT_EQ(visits.size(), 3u);
+    EXPECT_EQ(Scheduler::instance().getFinishedSnapshot().size(), 1u);
+    EXPECT_EQ(Scheduler::instance().getRunningSnapshot().size(), 0u);
+}
+
+// CM: num-cpu upper bound is 128. Booting 128 worker threads must not crash.
+TEST_F(SchedulerFixture, BootsWithMaxNumCpu) {
+    auto cfg = makeCfg(128, SchedulerConfig::Algo::FCFS);
+    Scheduler::instance().initialize(cfg);
+    Scheduler::instance().setProcessFactory([](const std::string& name, int pid) {
+        return std::make_unique<MockProcess>(pid, name, 2);
+    });
+    Scheduler::instance().startGenerator();
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    Scheduler::instance().stopGenerator();
+    SUCCEED();
+}
+
+// DS:418 — snapshots must remain race-free while CPUs mutate state.
+// Surviving without a crash, hang, or sanitizer hit is the assertion.
+TEST_F(SchedulerFixture, ConcurrentSnapshotsDuringHeavyTraffic) {
+    auto cfg = makeCfg(4, SchedulerConfig::Algo::RR, /*quantum=*/2);
+    Scheduler::instance().initialize(cfg);
+    Scheduler::instance().setProcessFactory([](const std::string& name, int pid) {
+        return std::make_unique<MockProcess>(pid, name, 20);
+    });
+    Scheduler::instance().startGenerator();
+
+    std::atomic<bool> stop{false};
+    std::thread reader([&] {
+        while (!stop.load()) {
+            (void)Scheduler::instance().getRunningSnapshot();
+            (void)Scheduler::instance().getFinishedSnapshot();
+        }
+    });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    stop.store(true);
+    reader.join();
+
+    Scheduler::instance().stopGenerator();
+    SUCCEED();
+}
+
 TEST_F(SchedulerFixture, CleanShutdownIsBounded) {
     auto cfg = makeCfg(4, SchedulerConfig::Algo::RR, /*quantum=*/3);
     Scheduler::instance().initialize(cfg);
