@@ -2,6 +2,7 @@
 
 #include "config/Config.h"
 #include "cli/Demo.h"
+#include "process/Instructions.h"
 #include "scheduler/Scheduler.h"
 
 #include <cstdlib>
@@ -57,15 +58,16 @@ void Console::handleInitialize() {
     }
     try {
         Config cfg = parseConfig("config.txt");
-        Scheduler::instance().initialize(toSchedulerConfig(cfg));
+        SchedulerConfig scfg = toSchedulerConfig(cfg);
+        Scheduler::instance().initialize(scfg);
+        Scheduler::instance().setProcessFactory(
+            makeProcessFactory(cfg.minIns, cfg.maxIns));
         initialized_ = true;
         std::cout << "Initialized: " << cfg.numCpu << " cores, "
-                  << algoLabel(toSchedulerConfig(cfg).algo)
+                  << algoLabel(scfg.algo)
                   << ", quantum=" << cfg.quantumCycles
                   << ", delays-per-exec=" << cfg.delaysPerExec
                   << ", batch-process-freq=" << cfg.batchProcessFreq << ".\n";
-        std::cout << "(Note: no process factory registered yet; Track 2 wires this. "
-                     "'scheduler-start' will not produce processes until then.)\n";
     } catch (const std::exception& e) {
         std::cout << "Failed to initialize: " << e.what() << "\n";
     }
