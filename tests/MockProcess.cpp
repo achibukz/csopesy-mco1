@@ -44,7 +44,7 @@ void MockProcess::executeNext(uint64_t currentTick) {
             state_.store(ProcessState::FINISHED);
         } else if (sleepAtLine_ && current_ == *sleepAtLine_ && sleepDuration_ > 0) {
             sleepRemaining_ = sleepDuration_;
-            state_.store(ProcessState::SLEEPING);
+            state_.store(ProcessState::WAITING);
             triggerSleep = true;
         } else {
             state_.store(ProcessState::RUNNING);
@@ -62,7 +62,7 @@ void MockProcess::executeNext(uint64_t currentTick) {
 void MockProcess::tickSleep() {
     if (tickSleepHook) tickSleepHook();
     std::lock_guard<std::mutex> lk(mtx_);
-    if (state_.load() != ProcessState::SLEEPING) return;
+    if (state_.load() != ProcessState::WAITING) return;
     if (sleepRemaining_ > 0) --sleepRemaining_;
     if (sleepRemaining_ == 0) {
         state_.store(ProcessState::READY);

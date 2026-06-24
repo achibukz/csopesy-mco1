@@ -30,13 +30,29 @@ std::string stateLabel(ProcessState state) {
     switch (state) {
         case ProcessState::READY: return "READY";
         case ProcessState::RUNNING: return "RUNNING";
-        case ProcessState::SLEEPING: return "SLEEPING";
+        case ProcessState::WAITING: return "WAITING";
         case ProcessState::FINISHED: return "FINISHED";
     }
     return "UNKNOWN";
 }
 
-void appendProcessList(std::ostringstream& oss, const std::vector<IProcess*>& processes) {
+void appendRunningList(std::ostringstream& oss, const std::vector<IProcess*>& processes) {
+    if (processes.empty()) {
+        oss << "  None\n";
+        return;
+    }
+
+    for (std::size_t i = 0; i < processes.size(); ++i) {
+        const IProcess* p = processes[i];
+        if (!p) continue;
+        oss << "  " << p->getName()
+            << "  (" << formatTime(p->getCreatedAt()) << ")"
+            << "  Core: " << i
+            << "  " << p->getCurrentLine() << " / " << p->getTotalLines() << "\n";
+    }
+}
+
+void appendFinishedList(std::ostringstream& oss, const std::vector<IProcess*>& processes) {
     if (processes.empty()) {
         oss << "  None\n";
         return;
@@ -46,9 +62,8 @@ void appendProcessList(std::ostringstream& oss, const std::vector<IProcess*>& pr
         if (!p) continue;
         oss << "  " << p->getName()
             << "  (" << formatTime(p->getCreatedAt()) << ")"
-            << "  Core: N/A"
-            << "  " << p->getCurrentLine() << " / " << p->getTotalLines()
-            << "  " << stateLabel(p->getState()) << "\n";
+            << "  Finished"
+            << "  " << p->getCurrentLine() << " / " << p->getTotalLines() << "\n";
     }
 }
 
@@ -67,11 +82,13 @@ std::string Reporter::buildReport() {
     oss << "\n";
 
     oss << "Running processes:\n";
-    appendProcessList(oss, scheduler.getRunningSnapshot());
+    oss << "----------------------------------------------\n";
+    appendRunningList(oss, scheduler.getRunningSnapshot());
     oss << "\n";
 
     oss << "Finished processes:\n";
-    appendProcessList(oss, scheduler.getFinishedSnapshot());
+    oss << "----------------------------------------------\n";
+    appendFinishedList(oss, scheduler.getFinishedSnapshot());
 
     return oss.str();
 }

@@ -128,13 +128,13 @@ TEST(EngineTest, TickSleepingDoesNotHoldStateMutex) {
     FCFSPolicy policy;
     SchedulerEngine engine(makeConfig(), policy);
 
-    // Build a sleeping process: sleeps at line 1 for 3 ticks. Drive it into
-    // SLEEPING state before handing it to the engine.
+    // Build a waiting process: sleeps at line 1 for 3 ticks. Drive it into
+    // WAITING state before handing it to the engine.
     auto sleeper = std::make_unique<MockProcess>(
         1, "p01", /*totalInstructions=*/5,
         /*sleepAtLine=*/1, /*sleepDuration=*/3);
     sleeper->executeNext(0);
-    ASSERT_EQ(sleeper->getState(), ProcessState::SLEEPING);
+    ASSERT_EQ(sleeper->getState(), ProcessState::WAITING);
 
     MockProcess* raw = sleeper.get();
     engine.adoptSleeping(std::move(sleeper));
@@ -164,7 +164,7 @@ TEST(EngineTest, TickSleepingDoesNotHoldStateMutexDuringRebuild) {
         1, "p01", /*totalInstructions=*/5,
         /*sleepAtLine=*/1, /*sleepDuration=*/3);
     sleeper->executeNext(0);
-    ASSERT_EQ(sleeper->getState(), ProcessState::SLEEPING);
+    ASSERT_EQ(sleeper->getState(), ProcessState::WAITING);
 
     MockProcess* raw = sleeper.get();
     engine.adoptSleeping(std::move(sleeper));
@@ -185,7 +185,7 @@ TEST(EngineTest, TickSleepingDoesNotHoldStateMutexDuringRebuild) {
 }
 
 // CR:139-141 — multiple sleepers with the same wake tick must all transition
-// from SLEEPING to READY in the same engine step without dropping any.
+// from WAITING to READY in the same engine step without dropping any.
 TEST(EngineTest, SimultaneousAwakeningsAllReachReady) {
     FCFSPolicy policy;
     SchedulerEngine engine(makeConfig(), policy);
@@ -194,8 +194,8 @@ TEST(EngineTest, SimultaneousAwakeningsAllReachReady) {
         auto p = std::make_unique<MockProcess>(
             i, "p0" + std::to_string(i), /*totalInstructions=*/2,
             /*sleepAtLine=*/1, /*sleepDuration=*/1);
-        p->executeNext(0);  // drive to SLEEPING
-        ASSERT_EQ(p->getState(), ProcessState::SLEEPING);
+        p->executeNext(0);  // drive to WAITING
+        ASSERT_EQ(p->getState(), ProcessState::WAITING);
         engine.adoptSleeping(std::move(p));
     }
 

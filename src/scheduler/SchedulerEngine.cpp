@@ -228,7 +228,7 @@ void SchedulerEngine::tickSleepingProcesses() {
     // 3) read post-tick states off-lock; collect woken pointers
     std::unordered_set<IProcess*> woken;
     for (IProcess* p : sleepers) {
-        if (p->getState() != ProcessState::SLEEPING) {
+        if (p->getState() != ProcessState::WAITING) {
             woken.insert(p);
         }
     }

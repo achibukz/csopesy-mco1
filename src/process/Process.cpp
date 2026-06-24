@@ -75,11 +75,11 @@ void Process::executeNext(uint64_t /*currentTick*/) {
     }
 
     state_.store(ProcessState::RUNNING);
-    instr->execute(*this);  // may call requestSleep() -> state becomes SLEEPING
+    instr->execute(*this);  // may call requestSleep() -> state becomes WAITING
     currentLine_.fetch_add(1);
 
     // A trailing SLEEP transitions to FINISHED on the next wake, not here.
-    if (state_.load() != ProcessState::SLEEPING &&
+    if (state_.load() != ProcessState::WAITING &&
         currentLine_.load() >= totalInstructions_) {
         state_.store(ProcessState::FINISHED);
     }
@@ -87,7 +87,7 @@ void Process::executeNext(uint64_t /*currentTick*/) {
 
 void Process::tickSleep() {
     std::lock_guard<std::mutex> lk(mutex_);
-    if (state_.load() != ProcessState::SLEEPING) return;
+    if (state_.load() != ProcessState::WAITING) return;
     if (sleepRemaining_ > 0) --sleepRemaining_;
     if (sleepRemaining_ == 0) state_.store(ProcessState::READY);
 }
@@ -114,5 +114,5 @@ void Process::appendPrint(const std::string& msg) {
 void Process::requestSleep(uint8_t ticks) {
     if (ticks == 0) return;  // no-op sleep keeps the CPU
     sleepRemaining_ = ticks;
-    state_.store(ProcessState::SLEEPING);
+    state_.store(ProcessState::WAITING);
 }

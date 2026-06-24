@@ -57,7 +57,7 @@ void CPU::run() {
             continue;
         }
 
-        if (p->getState() == ProcessState::SLEEPING) {
+        if (p->getState() == ProcessState::WAITING) {
             engine_.moveToSleeping(p);
             current_.store(nullptr);
             continue;

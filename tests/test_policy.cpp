@@ -62,10 +62,10 @@ TEST(FCFSPolicyTest, KeepsRunningUntilFinished) {
     EXPECT_FALSE(policy.shouldKeepRunning(&p, 1, 999));
 }
 
-TEST(FCFSPolicyTest, YieldsOnSleeping) {
+TEST(FCFSPolicyTest, YieldsOnWaiting) {
     FCFSPolicy policy;
     StubProcess p(1, "p", 5);
-    p.setState(ProcessState::SLEEPING);
+    p.setState(ProcessState::WAITING);
     EXPECT_FALSE(policy.shouldKeepRunning(&p, 1, 999));
 }
 

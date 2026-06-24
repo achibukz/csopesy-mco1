@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-enum class ProcessState { READY, RUNNING, SLEEPING, FINISHED };
+enum class ProcessState { READY, RUNNING, WAITING, FINISHED };
 
 class IProcess {
 public:

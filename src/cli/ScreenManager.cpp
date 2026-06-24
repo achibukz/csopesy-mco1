@@ -27,7 +27,7 @@ std::string stateLabel(ProcessState state) {
     switch (state) {
         case ProcessState::READY: return "READY";
         case ProcessState::RUNNING: return "RUNNING";
-        case ProcessState::SLEEPING: return "SLEEPING";
+        case ProcessState::WAITING: return "WAITING";
         case ProcessState::FINISHED: return "FINISHED";
     }
     return "UNKNOWN";

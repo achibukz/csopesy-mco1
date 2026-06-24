@@ -24,7 +24,7 @@ int runToCompletion(Process& proc, int maxTicks = 100000) {
     int execCalls = 0;
     for (int tick = 0; tick < maxTicks; ++tick) {
         if (proc.isFinished()) break;
-        if (proc.getState() == ProcessState::SLEEPING) {
+        if (proc.getState() == ProcessState::WAITING) {
             proc.tickSleep();
             continue;
         }
@@ -91,13 +91,13 @@ TEST(ProcessTest, SleepRelinquishesThenResumes) {
 
     // Tick 1: SLEEP -> relinquishes the CPU.
     proc->executeNext(1);
-    EXPECT_EQ(proc->getState(), ProcessState::SLEEPING);
+    EXPECT_EQ(proc->getState(), ProcessState::WAITING);
 
     // 3 sleep ticks before it returns to READY.
     proc->tickSleep();
-    EXPECT_EQ(proc->getState(), ProcessState::SLEEPING);
+    EXPECT_EQ(proc->getState(), ProcessState::WAITING);
     proc->tickSleep();
-    EXPECT_EQ(proc->getState(), ProcessState::SLEEPING);
+    EXPECT_EQ(proc->getState(), ProcessState::WAITING);
     proc->tickSleep();
     EXPECT_EQ(proc->getState(), ProcessState::READY);
 
@@ -142,7 +142,7 @@ TEST(ProcessTest, SleepInsideForRelinquishesEachIteration) {
     int sleepEpisodes = 0;
     bool wasSleeping = false;
     for (int tick = 0; tick < 1000 && !proc->isFinished(); ++tick) {
-        if (proc->getState() == ProcessState::SLEEPING) {
+        if (proc->getState() == ProcessState::WAITING) {
             if (!wasSleeping) ++sleepEpisodes;
             wasSleeping = true;
             proc->tickSleep();

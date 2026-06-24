@@ -20,7 +20,7 @@ IProcess* FCFSPolicy::pickNext(std::queue<IProcess*>& ready) {
 bool FCFSPolicy::shouldKeepRunning(IProcess* p, int, uint32_t) {
     if (!p) return false;
     return p->getState() != ProcessState::FINISHED &&
-           p->getState() != ProcessState::SLEEPING;
+           p->getState() != ProcessState::WAITING;
 }
 
 void FCFSPolicy::onPreempt(IProcess*, std::queue<IProcess*>&) {
@@ -34,7 +34,7 @@ IProcess* RRPolicy::pickNext(std::queue<IProcess*>& ready) {
 bool RRPolicy::shouldKeepRunning(IProcess* p, int ticksOnCore, uint32_t quantum) {
     if (!p) return false;
     if (p->getState() == ProcessState::FINISHED) return false;
-    if (p->getState() == ProcessState::SLEEPING) return false;
+    if (p->getState() == ProcessState::WAITING) return false;
     if (quantum == 0) return true;
     return static_cast<uint32_t>(ticksOnCore) < quantum;
 }
