@@ -212,7 +212,10 @@ TEST_F(SchedulerFixture, RRFinishOnQuantumBoundaryGoesToFinishedNotReady) {
     auto visits = p.getVisits();
     EXPECT_EQ(visits.size(), 3u);
     EXPECT_EQ(Scheduler::instance().getFinishedSnapshot().size(), 1u);
-    EXPECT_EQ(Scheduler::instance().getRunningSnapshot().size(), 0u);
+    auto running = Scheduler::instance().getRunningSnapshot();
+    int activeCores = 0;
+    for (auto* proc : running) if (proc) ++activeCores;
+    EXPECT_EQ(activeCores, 0);
 }
 
 // CM: num-cpu upper bound is 128. Booting 128 worker threads must not crash.
@@ -267,4 +270,33 @@ TEST_F(SchedulerFixture, CleanShutdownIsBounded) {
     Scheduler::instance().shutdown();
     auto elapsed = std::chrono::steady_clock::now() - start;
     EXPECT_LT(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(), 500);
+}
+
+// Q3 fix B2: under continuous scheduler-start with batch-freq=1 and a deep
+// ready queue, the CPU loop must not waste a tick after finish/sleep/preempt.
+// Sample coresUsed across the run; the average must be very close to numCpu.
+TEST_F(SchedulerFixture, SteadyStateUtilizationNearOneHundredPercent) {
+    auto cfg = makeCfg(/*cores=*/4, SchedulerConfig::Algo::RR,
+                       /*quantum=*/5, /*delays=*/0, /*batch=*/1);
+    Scheduler::instance().initialize(cfg);
+    Scheduler::instance().setProcessFactory([](const std::string& name, int pid) {
+        return std::make_unique<MockProcess>(pid, name, 200);
+    });
+    Scheduler::instance().startGenerator();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    int samples = 0;
+    int sumUsed = 0;
+    auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(200);
+    while (std::chrono::steady_clock::now() < until) {
+        sumUsed += Scheduler::instance().getCoresUsed();
+        ++samples;
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+
+    Scheduler::instance().stopGenerator();
+    ASSERT_GT(samples, 0);
+    double avg = static_cast<double>(sumUsed) / samples;
+    EXPECT_GT(avg, 3.6) << "Average coresUsed " << avg << " — CPUs are wasting ticks between processes.";
 }

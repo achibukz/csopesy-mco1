@@ -51,21 +51,30 @@ void CPU::run() {
         delayTicksRemaining_ = delaysPerExec_;
         ++ticksOnCurrent_;
 
+        bool releasedCore = false;
+
         if (p->isFinished()) {
             engine_.markFinished(p);
             current_.store(nullptr);
-            continue;
-        }
-
-        if (p->getState() == ProcessState::WAITING) {
+            releasedCore = true;
+        } else if (p->getState() == ProcessState::WAITING) {
             engine_.moveToSleeping(p);
             current_.store(nullptr);
-            continue;
-        }
-
-        if (!policy_.shouldKeepRunning(p, ticksOnCurrent_, quantum_)) {
+            releasedCore = true;
+        } else if (!policy_.shouldKeepRunning(p, ticksOnCurrent_, quantum_)) {
             engine_.preempt(p, policy_);
             current_.store(nullptr);
+            releasedCore = true;
+        }
+
+        if (releasedCore) {
+            IProcess* q = engine_.popReady();
+            if (q) {
+                engine_.markRunning(q, coreId_);
+                current_.store(q);
+                ticksOnCurrent_ = 0;
+                delayTicksRemaining_ = 0;
+            }
         }
     }
 }

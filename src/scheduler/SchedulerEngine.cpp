@@ -21,7 +21,9 @@ std::string makeProcessName(int pid) {
 }  // namespace
 
 SchedulerEngine::SchedulerEngine(SchedulerConfig cfg, ISchedulingPolicy& policy)
-    : cfg_(std::move(cfg)), policy_(policy) {}
+    : cfg_(std::move(cfg)), policy_(policy) {
+    runningProcs_.assign(cfg_.numCpu, nullptr);
+}
 
 SchedulerEngine::~SchedulerEngine() {
     stop();
@@ -149,32 +151,38 @@ IProcess* SchedulerEngine::popReady() {
     return policy_.pickNext(ready_);
 }
 
-void SchedulerEngine::markRunning(IProcess* p, int /*coreId*/) {
+void SchedulerEngine::markRunning(IProcess* p, int coreId) {
     if (!p) return;
+    if (coreId < 0 || coreId >= static_cast<int>(runningProcs_.size())) return;
     std::lock_guard<std::mutex> lk(stateMutex_);
-    if (std::find(runningProcs_.begin(), runningProcs_.end(), p) == runningProcs_.end()) {
-        runningProcs_.push_back(p);
+    if (runningProcs_[coreId] == p) return;
+    if (runningProcs_[coreId] == nullptr) {
         ++coresUsed_;
     }
+    runningProcs_[coreId] = p;
 }
 
 void SchedulerEngine::clearRunning(IProcess* p) {
     if (!p) return;
     std::lock_guard<std::mutex> lk(stateMutex_);
-    auto it = std::find(runningProcs_.begin(), runningProcs_.end(), p);
-    if (it != runningProcs_.end()) {
-        runningProcs_.erase(it);
-        --coresUsed_;
+    for (auto& slot : runningProcs_) {
+        if (slot == p) {
+            slot = nullptr;
+            --coresUsed_;
+            return;
+        }
     }
 }
 
 void SchedulerEngine::markFinished(IProcess* p) {
     if (!p) return;
     std::lock_guard<std::mutex> lk(stateMutex_);
-    auto it = std::find(runningProcs_.begin(), runningProcs_.end(), p);
-    if (it != runningProcs_.end()) {
-        runningProcs_.erase(it);
-        --coresUsed_;
+    for (auto& slot : runningProcs_) {
+        if (slot == p) {
+            slot = nullptr;
+            --coresUsed_;
+            break;
+        }
     }
     finishedProcs_.push_back(p);
 }
@@ -182,10 +190,12 @@ void SchedulerEngine::markFinished(IProcess* p) {
 void SchedulerEngine::preempt(IProcess* p, ISchedulingPolicy& policy) {
     if (!p) return;
     std::lock_guard<std::mutex> lk(stateMutex_);
-    auto it = std::find(runningProcs_.begin(), runningProcs_.end(), p);
-    if (it != runningProcs_.end()) {
-        runningProcs_.erase(it);
-        --coresUsed_;
+    for (auto& slot : runningProcs_) {
+        if (slot == p) {
+            slot = nullptr;
+            --coresUsed_;
+            break;
+        }
     }
     policy.onPreempt(p, ready_);
 }
@@ -193,10 +203,12 @@ void SchedulerEngine::preempt(IProcess* p, ISchedulingPolicy& policy) {
 void SchedulerEngine::moveToSleeping(IProcess* p) {
     if (!p) return;
     std::lock_guard<std::mutex> lk(stateMutex_);
-    auto it = std::find(runningProcs_.begin(), runningProcs_.end(), p);
-    if (it != runningProcs_.end()) {
-        runningProcs_.erase(it);
-        --coresUsed_;
+    for (auto& slot : runningProcs_) {
+        if (slot == p) {
+            slot = nullptr;
+            --coresUsed_;
+            break;
+        }
     }
     if (std::find(sleepingProcs_.begin(), sleepingProcs_.end(), p) == sleepingProcs_.end()) {
         sleepingProcs_.push_back(p);
