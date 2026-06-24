@@ -2,6 +2,7 @@
 
 #include "config/Config.h"
 #include "cli/Demo.h"
+#include "cli/Reporter.h"
 #include "process/Instructions.h"
 #include "scheduler/Scheduler.h"
 
@@ -92,19 +93,29 @@ void Console::handleDemo() {
     std::cout << "(Scheduler state was reset by the demo. Run 'initialize' to start fresh.)\n";
 }
 
-void Console::handleScreen(const std::vector<std::string>&) {
-    std::cout << "screen command recognized. (Track 4)\n";
+void Console::handleScreen(const std::vector<std::string>& tokens) {
+    screenManager_.handleScreenCommand(tokens, std::cout);
 }
 
 void Console::handleReportUtil() {
-    std::cout << "report-util command recognized. (Track 4)\n";
+    Reporter::writeReport("csopesy-log.txt", std::cout);
 }
 
 void Console::handleExit() {
+    if (screenManager_.isInScreen()) {
+        screenManager_.exitScreen(std::cout);
+        return;
+    }
+
     if (initialized_) {
         Scheduler::instance().shutdown();
         initialized_ = false;
     }
+    exitRequested_ = true;
+}
+
+void Console::handleProcessSmi() {
+    screenManager_.handleProcessSmi(std::cout);
 }
 
 void Console::dispatch(const std::string& line) {
@@ -112,38 +123,34 @@ void Console::dispatch(const std::string& line) {
     if (tokens.empty()) return;
     const std::string& cmd = tokens[0];
 
-    if (cmd == "clear") {
-        clearScreen();
-        return;
-    }
-
     if (cmd != "initialize" && cmd != "exit" && !initialized_) {
         std::cout << "System not initialized. Run 'initialize' first.\n";
         return;
     }
 
+    if (screenManager_.isInScreen() && cmd != "process-smi" && cmd != "exit") {
+        std::cout << "Unknown command: \"" << cmd << "\".\n";
+        return;
+    }
+
     if (cmd == "initialize")           handleInitialize();
+    else if (cmd == "exit")            handleExit();
+    else if (cmd == "clear")           clearScreen();
     else if (cmd == "scheduler-start") handleSchedulerStart();
     else if (cmd == "scheduler-stop")  handleSchedulerStop();
     else if (cmd == "demo")            handleDemo();
     else if (cmd == "screen")          handleScreen(tokens);
     else if (cmd == "report-util")     handleReportUtil();
-    else if (cmd == "exit")            { /* handled by run loop */ }
+    else if (cmd == "process-smi")     handleProcessSmi();
     else                                std::cout << "Unknown command: \"" << cmd << "\".\n";
 }
 
 void Console::run() {
     printHeader();
     std::string line;
-    while (true) {
+    while (!exitRequested_) {
         std::cout << "Enter a command: ";
         if (!std::getline(std::cin, line)) break;
-
-        std::istringstream iss(line);
-        std::string cmd;
-        iss >> cmd;
-        if (cmd == "exit") { handleExit(); break; }
-
         dispatch(line);
     }
 }

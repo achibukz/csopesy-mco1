@@ -116,7 +116,7 @@ public:
                                              uint32_t minIns, uint32_t maxIns);
 
 private:
-    // depthRemaining decrements on each FOR recursion; FOR is disallowed once it hits 1.
+    // depthRemaining decrements on each FOR recursion; FOR is disallowed once it hits 0.
     static std::unique_ptr<IInstruction> randomCommand(int depthRemaining);
 };
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "cli/ScreenManager.h"
+
 #include <string>
 #include <vector>
 
@@ -13,6 +15,8 @@ public:
 
 private:
     bool initialized_ = false;
+    bool exitRequested_ = false;
+    ScreenManager screenManager_;
 
     void printHeader();
     void clearScreen();
@@ -24,4 +28,5 @@ private:
     void handleScreen(const std::vector<std::string>& tokens);
     void handleReportUtil();
     void handleExit();
+    void handleProcessSmi();
 };

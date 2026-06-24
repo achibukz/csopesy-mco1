@@ -47,6 +47,10 @@ void Scheduler::enqueue(IProcess* p) {
     engine_->enqueueReady(p);
 }
 
+IProcess* Scheduler::createProcess(const std::string& name) {
+    return engine_ ? engine_->createReadyProcess(name) : nullptr;
+}
+
 void Scheduler::setProcessFactory(SchedulerEngine::ProcessFactory f) {
     if (!engine_) return;
     engine_->setProcessFactory(std::move(f));
@@ -78,6 +82,10 @@ std::vector<IProcess*> Scheduler::getRunningSnapshot() const {
 
 std::vector<IProcess*> Scheduler::getFinishedSnapshot() const {
     return engine_ ? engine_->snapshotFinished() : std::vector<IProcess*>{};
+}
+
+std::vector<IProcess*> Scheduler::getAllSnapshot() const {
+    return engine_ ? engine_->snapshotAll() : std::vector<IProcess*>{};
 }
 
 uint64_t Scheduler::getCurrentTick() const {

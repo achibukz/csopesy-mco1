@@ -26,6 +26,8 @@ add_library(mco1_core
     src/process/Process.cpp
     src/process/Instructions.cpp
     src/cli/Demo.cpp
+    src/cli/Reporter.cpp
+    src/cli/ScreenManager.cpp
 )
 target_include_directories(mco1_core PUBLIC include)
 target_link_libraries(mco1_core PUBLIC Threads::Threads)

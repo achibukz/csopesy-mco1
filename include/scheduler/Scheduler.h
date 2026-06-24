@@ -19,6 +19,7 @@ public:
     bool isInitialized() const { return initialized_; }
 
     void enqueue(IProcess* p);
+    IProcess* createProcess(const std::string& name);
     void setProcessFactory(SchedulerEngine::ProcessFactory f);
 
     void startGenerator();
@@ -29,6 +30,7 @@ public:
     int                    getCoresTotal() const;
     std::vector<IProcess*> getRunningSnapshot() const;
     std::vector<IProcess*> getFinishedSnapshot() const;
+    std::vector<IProcess*> getAllSnapshot() const;
     uint64_t               getCurrentTick() const;
 
     SchedulerEngine& engineForTesting();

@@ -18,10 +18,10 @@ TEST(ConsoleTest, ExcessWhitespaceTokenizesCleanly) {
     EXPECT_NO_THROW(c.dispatch("    exit   "));
 }
 
-// CM: any non-{initialize,exit,clear} command before initialize must be
-// rejected without throwing.
+// CM: only initialize and exit are valid before initialize.
 TEST(ConsoleTest, NonInitializeCommandsBeforeInitAreRejectedQuietly) {
     Console c;
+    EXPECT_NO_THROW(c.dispatch("clear"));
     EXPECT_NO_THROW(c.dispatch("scheduler-start"));
     EXPECT_NO_THROW(c.dispatch("screen -ls"));
     EXPECT_NO_THROW(c.dispatch("report-util"));

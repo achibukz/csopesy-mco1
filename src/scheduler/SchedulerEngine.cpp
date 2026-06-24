@@ -57,23 +57,8 @@ void SchedulerEngine::stepOnce() {
     tick_.fetch_add(1);
     tickSleepingProcesses();
     notifyTick();
-    if (generatorEnabled_.load()) {
-        if (factory_ && tick_.load() % cfg_.batchProcessFreq == 0) {
-            int pid;
-            {
-                std::lock_guard<std::mutex> lk(stateMutex_);
-                pid = nextPid_++;
-            }
-            auto proc = factory_(makeProcessName(pid), pid);
-            if (proc) {
-                IProcess* raw = proc.get();
-                {
-                    std::lock_guard<std::mutex> lk(stateMutex_);
-                    owned_.push_back(std::move(proc));
-                    ready_.push(raw);
-                }
-            }
-        }
+    if (generatorEnabled_.load() && tick_.load() % cfg_.batchProcessFreq == 0) {
+        generateNextReadyProcess();
     }
 }
 
@@ -100,30 +85,63 @@ void SchedulerEngine::generatorLoop() {
         if (!generatorRunning_.load() || !running_.load()) break;
         uint64_t current = tick_.load();
         if (current == lastSeen) continue;
-        lastSeen = current;
 
-        if (!generatorEnabled_.load()) continue;
-        if (!factory_) continue;
-        if (current % cfg_.batchProcessFreq != 0) continue;
-
-        int pid;
-        {
-            std::lock_guard<std::mutex> lk(stateMutex_);
-            pid = nextPid_++;
+        for (uint64_t t = lastSeen + 1; t <= current; ++t) {
+            if (!generatorEnabled_.load()) break;
+            if (t % cfg_.batchProcessFreq == 0) {
+                generateNextReadyProcess();
+            }
         }
-        auto proc = factory_(makeProcessName(pid), pid);
-        if (!proc) continue;
-        IProcess* raw = proc.get();
+        lastSeen = current;
+    }
+}
+
+bool SchedulerEngine::generateNextReadyProcess() {
+    if (!factory_) return false;
+
+    int pid;
+    {
+        std::lock_guard<std::mutex> lk(stateMutex_);
+        pid = nextPid_++;
+    }
+
+    auto proc = factory_(makeProcessName(pid), pid);
+    if (!proc) return false;
+
+    IProcess* raw = proc.get();
+    {
         std::lock_guard<std::mutex> lk(stateMutex_);
         owned_.push_back(std::move(proc));
         ready_.push(raw);
     }
+    return true;
 }
 
 void SchedulerEngine::enqueueReady(IProcess* p) {
     if (!p) return;
     std::lock_guard<std::mutex> lk(stateMutex_);
     ready_.push(p);
+}
+
+IProcess* SchedulerEngine::createReadyProcess(const std::string& name) {
+    if (!factory_) return nullptr;
+
+    int pid;
+    {
+        std::lock_guard<std::mutex> lk(stateMutex_);
+        pid = nextPid_++;
+    }
+
+    auto proc = factory_(name, pid);
+    if (!proc) return nullptr;
+
+    IProcess* raw = proc.get();
+    {
+        std::lock_guard<std::mutex> lk(stateMutex_);
+        owned_.push_back(std::move(proc));
+        ready_.push(raw);
+    }
+    return raw;
 }
 
 IProcess* SchedulerEngine::popReady() {
@@ -260,6 +278,16 @@ std::vector<IProcess*> SchedulerEngine::snapshotRunning() const {
 std::vector<IProcess*> SchedulerEngine::snapshotFinished() const {
     std::lock_guard<std::mutex> lk(stateMutex_);
     return finishedProcs_;
+}
+
+std::vector<IProcess*> SchedulerEngine::snapshotAll() const {
+    std::lock_guard<std::mutex> lk(stateMutex_);
+    std::vector<IProcess*> out;
+    out.reserve(owned_.size());
+    for (const auto& p : owned_) {
+        out.push_back(p.get());
+    }
+    return out;
 }
 
 int SchedulerEngine::coresUsed() const {

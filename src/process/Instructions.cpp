@@ -87,7 +87,7 @@ Operand randOperand() {
 
 std::unique_ptr<IInstruction> InstructionGenerator::randomCommand(int depthRemaining) {
     // Allow FOR only while another level of nesting is still permitted.
-    const bool allowFor = depthRemaining > 1;
+    const bool allowFor = depthRemaining > 0;
     const int kinds = allowFor ? 6 : 5;
 
     switch (randInt(0, kinds - 1)) {

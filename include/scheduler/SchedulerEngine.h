@@ -32,6 +32,7 @@ public:
     void stepOnce();
 
     void      enqueueReady(IProcess* p);
+    IProcess* createReadyProcess(const std::string& name);
     IProcess* popReady();
     void      markRunning(IProcess* p, int coreId);
     void      clearRunning(IProcess* p);
@@ -53,6 +54,7 @@ public:
 
     std::vector<IProcess*> snapshotRunning() const;
     std::vector<IProcess*> snapshotFinished() const;
+    std::vector<IProcess*> snapshotAll() const;
     int    coresTotal() const { return cfg_.numCpu; }
     int    coresUsed() const;
     double cpuUtilization() const;
@@ -65,6 +67,7 @@ private:
     void tickLoop();
     void generatorLoop();
     void notifyTick();
+    bool generateNextReadyProcess();
 
     SchedulerConfig    cfg_;
     ISchedulingPolicy& policy_;
