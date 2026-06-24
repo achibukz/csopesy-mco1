@@ -79,30 +79,36 @@ TEST(EngineTest, GeneratorDisabledByDefault) {
 
 TEST(EngineTest, RunningAndFinishedSnapshotsAreCopies) {
     FCFSPolicy policy;
-    SchedulerEngine engine(makeConfig(), policy);
+    SchedulerEngine engine(makeConfig(), policy);  // numCpu = 1
     MockProcess a(1, "a", 5);
     engine.markRunning(&a, 0);
 
     auto running = engine.snapshotRunning();
     EXPECT_EQ(running.size(), 1u);
     EXPECT_EQ(running[0], &a);
+    EXPECT_EQ(engine.coresUsed(), 1);
 
     engine.markFinished(&a);
-    EXPECT_EQ(engine.snapshotRunning().size(), 0u);
+    auto runningAfter = engine.snapshotRunning();
+    EXPECT_EQ(runningAfter.size(), 1u);
+    EXPECT_EQ(runningAfter[0], nullptr);
+    EXPECT_EQ(engine.coresUsed(), 0);
     EXPECT_EQ(engine.snapshotFinished().size(), 1u);
     EXPECT_EQ(running.size(), 1u);
 }
 
 TEST(EngineTest, CoresUsedTracksRunning) {
     FCFSPolicy policy;
-    SchedulerEngine engine(makeConfig(), policy);
+    SchedulerConfig cfg = makeConfig();
+    cfg.numCpu = 2;
+    SchedulerEngine engine(cfg, policy);
     MockProcess a(1, "a", 5);
     MockProcess b(2, "b", 5);
 
     EXPECT_EQ(engine.coresUsed(), 0);
     engine.markRunning(&a, 0);
     EXPECT_EQ(engine.coresUsed(), 1);
-    engine.markRunning(&b, 0);
+    engine.markRunning(&b, 1);
     EXPECT_EQ(engine.coresUsed(), 2);
     engine.clearRunning(&a);
     EXPECT_EQ(engine.coresUsed(), 1);
@@ -112,13 +118,15 @@ TEST(EngineTest, CoresUsedTracksRunning) {
 
 TEST(EngineTest, PreemptRemovesFromRunningAndCallsPolicy) {
     RRPolicy policy;
-    SchedulerEngine engine(makeConfig(), policy);
+    SchedulerEngine engine(makeConfig(), policy);  // numCpu = 1
     MockProcess a(1, "a", 5);
     engine.markRunning(&a, 0);
 
     engine.preempt(&a, policy);
     EXPECT_EQ(engine.coresUsed(), 0);
-    EXPECT_EQ(engine.snapshotRunning().size(), 0u);
+    auto running = engine.snapshotRunning();
+    EXPECT_EQ(running.size(), 1u);
+    EXPECT_EQ(running[0], nullptr);
     EXPECT_EQ(engine.popReady(), &a);
 }
 
@@ -222,4 +230,27 @@ TEST(EngineTest, GeneratorNamesAreZeroPadded) {
     EXPECT_EQ(names[0], "p01");
     EXPECT_EQ(names[1], "p02");
     EXPECT_EQ(names[2], "p03");
+}
+
+// Q3 fix B1: markRunning must place the process at the slot indicated by
+// coreId so the snapshot's vector index equals the real CPU core.
+TEST(EngineTest, MarkRunningPlacesProcessAtCoreIdSlot) {
+    FCFSPolicy policy;
+    SchedulerConfig cfg = makeConfig();
+    cfg.numCpu = 4;
+    SchedulerEngine engine(cfg, policy);
+
+    MockProcess a(1, "a", 5);
+    MockProcess b(2, "b", 5);
+
+    engine.markRunning(&a, 2);  // core 2
+    engine.markRunning(&b, 0);  // core 0
+
+    auto running = engine.snapshotRunning();
+    ASSERT_EQ(running.size(), 4u) << "snapshot must be sized to numCpu with nullptr for idle cores";
+    EXPECT_EQ(running[0], &b);
+    EXPECT_EQ(running[1], nullptr);
+    EXPECT_EQ(running[2], &a);
+    EXPECT_EQ(running[3], nullptr);
+    EXPECT_EQ(engine.coresUsed(), 2);
 }
