@@ -6,9 +6,9 @@
 #include <condition_variable>
 #include <cstdint>
 #include <functional>
+#include <deque>
 #include <memory>
 #include <mutex>
-#include <queue>
 #include <string>
 #include <thread>
 #include <vector>
@@ -81,7 +81,7 @@ private:
     std::condition_variable tickCv_;
 
     mutable std::mutex                     stateMutex_;
-    std::queue<IProcess*>                  ready_;
+    std::deque<IProcess*>                  ready_;
     std::vector<IProcess*>                 runningProcs_;
     std::vector<IProcess*>                 sleepingProcs_;
     std::vector<IProcess*>                 finishedProcs_;

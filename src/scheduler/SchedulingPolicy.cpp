@@ -4,16 +4,16 @@
 
 namespace {
 
-IProcess* popFront(std::queue<IProcess*>& q) {
+IProcess* popFront(std::deque<IProcess*>& q) {
     if (q.empty()) return nullptr;
     IProcess* p = q.front();
-    q.pop();
+    q.pop_front();
     return p;
 }
 
 }  // namespace
 
-IProcess* FCFSPolicy::pickNext(std::queue<IProcess*>& ready) {
+IProcess* FCFSPolicy::pickNext(std::deque<IProcess*>& ready) {
     return popFront(ready);
 }
 
@@ -23,11 +23,11 @@ bool FCFSPolicy::shouldKeepRunning(IProcess* p, int, uint32_t) {
            p->getState() != ProcessState::WAITING;
 }
 
-void FCFSPolicy::onPreempt(IProcess*, std::queue<IProcess*>&) {
+void FCFSPolicy::onPreempt(IProcess*, std::deque<IProcess*>&) {
     // FCFS is run-to-completion. Only invoked when sleeping/finished.
 }
 
-IProcess* RRPolicy::pickNext(std::queue<IProcess*>& ready) {
+IProcess* RRPolicy::pickNext(std::deque<IProcess*>& ready) {
     return popFront(ready);
 }
 
@@ -39,8 +39,8 @@ bool RRPolicy::shouldKeepRunning(IProcess* p, int ticksOnCore, uint32_t quantum)
     return static_cast<uint32_t>(ticksOnCore) < quantum;
 }
 
-void RRPolicy::onPreempt(IProcess* p, std::queue<IProcess*>& ready) {
+void RRPolicy::onPreempt(IProcess* p, std::deque<IProcess*>& ready) {
     if (!p) return;
     if (p->getState() == ProcessState::FINISHED) return;
-    ready.push(p);
+    ready.push_back(p);
 }

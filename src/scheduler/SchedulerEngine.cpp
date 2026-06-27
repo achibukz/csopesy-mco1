@@ -114,7 +114,7 @@ bool SchedulerEngine::generateNextReadyProcess() {
     {
         std::lock_guard<std::mutex> lk(stateMutex_);
         owned_.push_back(std::move(proc));
-        ready_.push(raw);
+        ready_.push_back(raw);
     }
     return true;
 }
@@ -122,7 +122,7 @@ bool SchedulerEngine::generateNextReadyProcess() {
 void SchedulerEngine::enqueueReady(IProcess* p) {
     if (!p) return;
     std::lock_guard<std::mutex> lk(stateMutex_);
-    ready_.push(p);
+    ready_.push_back(p);
 }
 
 IProcess* SchedulerEngine::createReadyProcess(const std::string& name) {
@@ -141,7 +141,7 @@ IProcess* SchedulerEngine::createReadyProcess(const std::string& name) {
     {
         std::lock_guard<std::mutex> lk(stateMutex_);
         owned_.push_back(std::move(proc));
-        ready_.push(raw);
+        ready_.push_back(raw);
     }
     return raw;
 }
@@ -237,28 +237,48 @@ void SchedulerEngine::tickSleepingProcesses() {
         p->tickSleep();
     }
 
-    // 3) read post-tick states off-lock; collect woken pointers
+    // 3) read post-tick states off-lock; collect woken pointers. Order them for
+    //    deterministic same-tick wakeups: earlier arrival time wins, with lower
+    //    PID as the secondary tiebreaker. Earlier-ordered processes end up nearer
+    //    the front of the ready queue. getCreatedAt()/getPID() are called here,
+    //    off-lock, by design.
     std::unordered_set<IProcess*> woken;
+    std::vector<IProcess*>        wokenOrdered;
     for (IProcess* p : sleepers) {
         if (p->getState() != ProcessState::WAITING) {
             woken.insert(p);
+            wokenOrdered.push_back(p);
         }
     }
+    std::sort(wokenOrdered.begin(), wokenOrdered.end(), [](IProcess* a, IProcess* b) {
+        auto ta = a->getCreatedAt();
+        auto tb = b->getCreatedAt();
+        if (ta != tb) return ta < tb;        // earlier arrival first
+        return a->getPID() < b->getPID();    // tiebreaker: lower PID first
+    });
 
     // 4) under lock, rebuild sleepingProcs_ from the engine's *current* list
     //    (preserving any sleepers added between steps 1 and 4) using the
     //    off-lock `woken` set as a pure-data predicate. No process method
     //    is called inside this critical section.
     std::lock_guard<std::mutex> lk(stateMutex_);
-    std::vector<IProcess*> stillSleeping;
+    std::unordered_set<IProcess*> stillTracked;
+    std::vector<IProcess*>        stillSleeping;
     stillSleeping.reserve(sleepingProcs_.size());
     for (IProcess* p : sleepingProcs_) {
         if (woken.count(p)) {
-            ready_.push(p);
+            stillTracked.insert(p);  // woken and still tracked -> goes to ready
         } else {
             stillSleeping.push_back(p);
         }
     }
+    // Woken sleepers re-enter at the front of the ready queue in arrival/PID order.
+    std::vector<IProcess*> toWake;
+    toWake.reserve(wokenOrdered.size());
+    for (IProcess* p : wokenOrdered) {
+        if (stillTracked.count(p)) toWake.push_back(p);
+    }
+    ready_.insert(ready_.begin(), toWake.begin(), toWake.end());
     sleepingProcs_.swap(stillSleeping);
 }
 
