@@ -66,7 +66,7 @@ void SchedulerEngine::stepOnce() {
 
 void SchedulerEngine::tickLoop() {
     while (running_.load()) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
         if (!running_.load()) break;
         tick_.fetch_add(1);
         tickSleepingProcesses();
