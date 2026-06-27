@@ -29,6 +29,7 @@ Process::Process(int pid, std::string name,
       program_(std::move(program)),
       totalInstructions_(static_cast<int>(countAtomics(program_))),
       createdAt_(std::chrono::system_clock::now()) {
+    variables_["x"] = 0;  // every process starts with x = 0 in its symbol table
     if (totalInstructions_ == 0) {
         state_.store(ProcessState::FINISHED);
     } else {

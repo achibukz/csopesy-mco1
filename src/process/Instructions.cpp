@@ -4,7 +4,6 @@
 #include "scheduler/IProcess.h"
 
 #include <algorithm>
-#include <array>
 #include <random>
 #include <string>
 
@@ -70,62 +69,7 @@ int randInt(int lo, int hi) {
     return d(rng());
 }
 
-// Small fixed pool so ADD/SUBTRACT operands tend to reference real variables;
-// missing ones auto-declare to 0 anyway.
-const std::array<std::string, 5> kVarPool{"x", "y", "z", "a", "b"};
-
-const std::string& randVar() {
-    return kVarPool[randInt(0, static_cast<int>(kVarPool.size()) - 1)];
-}
-
-Operand randOperand() {
-    if (randInt(0, 1) == 0) return Operand::lit(static_cast<uint16_t>(randInt(0, 500)));
-    return Operand::var(randVar());
-}
-
 }  // namespace
-
-std::unique_ptr<IInstruction> InstructionGenerator::randomCommand(int depthRemaining,
-                                                                 long long& weightOut) {
-    // Allow FOR only while another level of nesting is still permitted.
-    const bool allowFor = depthRemaining > 0;
-    const int kinds = allowFor ? 6 : 5;
-
-    switch (randInt(0, kinds - 1)) {
-        case 0:  // PRINT (sometimes concatenating a variable)
-            weightOut = 1;
-            if (randInt(0, 1) == 0)
-                return std::make_unique<PrintCommand>();
-            return std::make_unique<PrintCommand>("Value of " + randVar() + ": ", randVar());
-        case 1:  // DECLARE
-            weightOut = 1;
-            return std::make_unique<DeclareCommand>(randVar(),
-                                                    static_cast<uint16_t>(randInt(0, 1000)));
-        case 2:  // ADD
-            weightOut = 1;
-            return std::make_unique<AddCommand>(randVar(), randOperand(), randOperand());
-        case 3:  // SUBTRACT
-            weightOut = 1;
-            return std::make_unique<SubtractCommand>(randVar(), randOperand(), randOperand());
-        case 4:  // SLEEP — one instruction; its duration is wall-clock ticks, not a count.
-            weightOut = 1;
-            return std::make_unique<SleepCommand>(static_cast<uint8_t>(randInt(1, 8)));
-        default: {  // FOR — counts as repeats * (sum of body command weights).
-            int bodySize = randInt(1, 3);
-            std::vector<std::unique_ptr<IInstruction>> body;
-            body.reserve(bodySize);
-            long long bodyWeight = 0;
-            for (int i = 0; i < bodySize; ++i) {
-                long long childWeight = 0;
-                body.push_back(randomCommand(depthRemaining - 1, childWeight));
-                bodyWeight += childWeight;
-            }
-            int repeats = randInt(2, 5);
-            weightOut = static_cast<long long>(repeats) * bodyWeight;
-            return std::make_unique<ForCommand>(std::move(body), repeats);
-        }
-    }
-}
 
 std::unique_ptr<Process> InstructionGenerator::generate(const std::string& name, int pid,
                                                         uint32_t minIns, uint32_t maxIns) {
@@ -133,16 +77,20 @@ std::unique_ptr<Process> InstructionGenerator::generate(const std::string& name,
     if (minIns == 0) minIns = 1;  // never generate a zero-length program
     if (maxIns == 0) maxIns = minIns;
 
-    // Accumulate top-level commands until their combined weight reaches the target.
-    // A command's weight counts FOR as repeats*body and SLEEP as its duration, so a
-    // single FOR or SLEEP may push the total past the target in one step.
-    const long long target = randInt(static_cast<int>(minIns), static_cast<int>(maxIns));
+    // Every program is a fixed alternating sequence over the seeded variable x:
+    //   PRINT("Value from: " + x), ADD(x, x, [1..10]), PRINT, ADD, ...
+    // Each command is one atomic instruction, so the count maps 1:1 to [minIns, maxIns].
+    const int count = randInt(static_cast<int>(minIns), static_cast<int>(maxIns));
     std::vector<std::unique_ptr<IInstruction>> program;
-    long long total = 0;
-    while (total < target) {
-        long long weight = 0;
-        program.push_back(randomCommand(kMaxForDepth, weight));
-        total += weight;
+    program.reserve(count);
+    for (int i = 0; i < count; ++i) {
+        if (i % 2 == 0) {
+            program.push_back(std::make_unique<PrintCommand>("Value from: ", "x"));
+        } else {
+            program.push_back(std::make_unique<AddCommand>(
+                "x", Operand::var("x"),
+                Operand::lit(static_cast<uint16_t>(randInt(1, 10)))));
+        }
     }
 
     return std::make_unique<Process>(pid, name, std::move(program));

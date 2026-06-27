@@ -106,21 +106,13 @@ private:
     int                                        repeats_;
 };
 
-// Produces a randomized Process with [minIns, maxIns] top-level instructions
-// mixing all six types; FOR nesting is capped at kMaxForDepth.
+// Produces a Process whose program is a fixed alternating sequence over the
+// seeded variable x: PRINT("Value from: " + x), ADD(x, x, [1..10]), repeating.
+// The instruction count is drawn from [minIns, maxIns].
 class InstructionGenerator {
 public:
-    static constexpr int kMaxForDepth = 3;
-
     static std::unique_ptr<Process> generate(const std::string& name, int pid,
                                              uint32_t minIns, uint32_t maxIns);
-
-private:
-    // depthRemaining decrements on each FOR recursion; FOR is disallowed once it hits 0.
-    // weightOut receives the min/max-ins cost of the produced command:
-    //   FOR -> repeats * sum(body weights); every other kind (incl. SLEEP) -> 1.
-    static std::unique_ptr<IInstruction> randomCommand(int depthRemaining,
-                                                       long long& weightOut);
 };
 
 // Factory adapter for Scheduler::setProcessFactory(); wired in Console::handleInitialize.
