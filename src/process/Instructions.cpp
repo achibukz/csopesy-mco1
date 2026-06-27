@@ -85,32 +85,44 @@ Operand randOperand() {
 
 }  // namespace
 
-std::unique_ptr<IInstruction> InstructionGenerator::randomCommand(int depthRemaining) {
+std::unique_ptr<IInstruction> InstructionGenerator::randomCommand(int depthRemaining,
+                                                                 long long& weightOut) {
     // Allow FOR only while another level of nesting is still permitted.
     const bool allowFor = depthRemaining > 0;
     const int kinds = allowFor ? 6 : 5;
 
     switch (randInt(0, kinds - 1)) {
         case 0:  // PRINT (sometimes concatenating a variable)
+            weightOut = 1;
             if (randInt(0, 1) == 0)
                 return std::make_unique<PrintCommand>();
             return std::make_unique<PrintCommand>("Value of " + randVar() + ": ", randVar());
         case 1:  // DECLARE
+            weightOut = 1;
             return std::make_unique<DeclareCommand>(randVar(),
                                                     static_cast<uint16_t>(randInt(0, 1000)));
         case 2:  // ADD
+            weightOut = 1;
             return std::make_unique<AddCommand>(randVar(), randOperand(), randOperand());
         case 3:  // SUBTRACT
+            weightOut = 1;
             return std::make_unique<SubtractCommand>(randVar(), randOperand(), randOperand());
-        case 4:  // SLEEP
+        case 4:  // SLEEP — one instruction; its duration is wall-clock ticks, not a count.
+            weightOut = 1;
             return std::make_unique<SleepCommand>(static_cast<uint8_t>(randInt(1, 8)));
-        default: {  // FOR
+        default: {  // FOR — counts as repeats * (sum of body command weights).
             int bodySize = randInt(1, 3);
             std::vector<std::unique_ptr<IInstruction>> body;
             body.reserve(bodySize);
-            for (int i = 0; i < bodySize; ++i)
-                body.push_back(randomCommand(depthRemaining - 1));
-            return std::make_unique<ForCommand>(std::move(body), randInt(2, 5));
+            long long bodyWeight = 0;
+            for (int i = 0; i < bodySize; ++i) {
+                long long childWeight = 0;
+                body.push_back(randomCommand(depthRemaining - 1, childWeight));
+                bodyWeight += childWeight;
+            }
+            int repeats = randInt(2, 5);
+            weightOut = static_cast<long long>(repeats) * bodyWeight;
+            return std::make_unique<ForCommand>(std::move(body), repeats);
         }
     }
 }
@@ -121,11 +133,17 @@ std::unique_ptr<Process> InstructionGenerator::generate(const std::string& name,
     if (minIns == 0) minIns = 1;  // never generate a zero-length program
     if (maxIns == 0) maxIns = minIns;
 
-    const int count = randInt(static_cast<int>(minIns), static_cast<int>(maxIns));
+    // Accumulate top-level commands until their combined weight reaches the target.
+    // A command's weight counts FOR as repeats*body and SLEEP as its duration, so a
+    // single FOR or SLEEP may push the total past the target in one step.
+    const long long target = randInt(static_cast<int>(minIns), static_cast<int>(maxIns));
     std::vector<std::unique_ptr<IInstruction>> program;
-    program.reserve(count);
-    for (int i = 0; i < count; ++i)
-        program.push_back(randomCommand(kMaxForDepth));
+    long long total = 0;
+    while (total < target) {
+        long long weight = 0;
+        program.push_back(randomCommand(kMaxForDepth, weight));
+        total += weight;
+    }
 
     return std::make_unique<Process>(pid, name, std::move(program));
 }

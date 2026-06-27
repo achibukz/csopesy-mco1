@@ -117,7 +117,10 @@ public:
 
 private:
     // depthRemaining decrements on each FOR recursion; FOR is disallowed once it hits 0.
-    static std::unique_ptr<IInstruction> randomCommand(int depthRemaining);
+    // weightOut receives the min/max-ins cost of the produced command:
+    //   FOR -> repeats * sum(body weights); every other kind (incl. SLEEP) -> 1.
+    static std::unique_ptr<IInstruction> randomCommand(int depthRemaining,
+                                                       long long& weightOut);
 };
 
 // Factory adapter for Scheduler::setProcessFactory(); wired in Console::handleInitialize.
