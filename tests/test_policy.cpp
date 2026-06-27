@@ -4,7 +4,7 @@
 #include "scheduler/SchedulingPolicy.h"
 
 #include <chrono>
-#include <queue>
+#include <deque>
 
 namespace {
 
@@ -43,10 +43,10 @@ private:
 
 TEST(FCFSPolicyTest, PickNextPopsFront) {
     FCFSPolicy policy;
-    std::queue<IProcess*> q;
+    std::deque<IProcess*> q;
     StubProcess a(1, "a", 10), b(2, "b", 10);
-    q.push(&a);
-    q.push(&b);
+    q.push_back(&a);
+    q.push_back(&b);
 
     EXPECT_EQ(policy.pickNext(q), &a);
     EXPECT_EQ(policy.pickNext(q), &b);
@@ -71,7 +71,7 @@ TEST(FCFSPolicyTest, YieldsOnWaiting) {
 
 TEST(FCFSPolicyTest, OnPreemptIsNoOp) {
     FCFSPolicy policy;
-    std::queue<IProcess*> q;
+    std::deque<IProcess*> q;
     StubProcess p(1, "p", 5);
     policy.onPreempt(&p, q);
     EXPECT_TRUE(q.empty());
@@ -79,10 +79,10 @@ TEST(FCFSPolicyTest, OnPreemptIsNoOp) {
 
 TEST(RRPolicyTest, PickNextPopsFront) {
     RRPolicy policy;
-    std::queue<IProcess*> q;
+    std::deque<IProcess*> q;
     StubProcess a(1, "a", 10), b(2, "b", 10);
-    q.push(&a);
-    q.push(&b);
+    q.push_back(&a);
+    q.push_back(&b);
     EXPECT_EQ(policy.pickNext(q), &a);
     EXPECT_EQ(policy.pickNext(q), &b);
 }
@@ -98,18 +98,18 @@ TEST(RRPolicyTest, ShouldKeepRunningUntilQuantum) {
 
 TEST(RRPolicyTest, OnPreemptPushesToBack) {
     RRPolicy policy;
-    std::queue<IProcess*> q;
+    std::deque<IProcess*> q;
     StubProcess a(1, "a", 10), b(2, "b", 10);
-    q.push(&a);
+    q.push_back(&a);
     policy.onPreempt(&b, q);
     EXPECT_EQ(q.front(), &a);
-    q.pop();
+    q.pop_front();
     EXPECT_EQ(q.front(), &b);
 }
 
 TEST(RRPolicyTest, OnPreemptSkipsFinishedProcess) {
     RRPolicy policy;
-    std::queue<IProcess*> q;
+    std::deque<IProcess*> q;
     StubProcess p(1, "p", 5);
     p.setState(ProcessState::FINISHED);
     policy.onPreempt(&p, q);
@@ -118,7 +118,7 @@ TEST(RRPolicyTest, OnPreemptSkipsFinishedProcess) {
 
 TEST(RRPolicyTest, EmptyQueueReturnsNull) {
     RRPolicy policy;
-    std::queue<IProcess*> q;
+    std::deque<IProcess*> q;
     EXPECT_EQ(policy.pickNext(q), nullptr);
 }
 
